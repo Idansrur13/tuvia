@@ -1,0 +1,41 @@
+@import "tailwindcss";
+
+/*
+ * טוקנים גלובליים של המערכת.
+ * צבע המותג מוגדר פעם אחת כ"primary" שינוי כאן מתעדכן בכל האתר.
+ * שימוש: bg-primary-500, text-primary-700, border-primary-500 וכו'.
+ */
+@theme {
+  --font-sans: "Heebo", ui-sans-serif, system-ui, sans-serif,
+    "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
+
+  /* צבע עיקרי תכלת */
+  --color-primary-50: #f0f9ff;
+  --color-primary-100: #e0f2fe;
+  --color-primary-200: #bae6fd;
+  --color-primary-300: #7dd3fc;
+  --color-primary-400: #38bdf8;
+  --color-primary-500: #0ea5e9;
+  --color-primary-600: #0284c7;
+  --color-primary-700: #0369a1;
+  --color-primary-800: #075985;
+  --color-primary-900: #0c4a6e;
+
+  /* צבע משני לגרדיאנטים והדגשות */
+  --color-accent-400: #22d3ee;
+
+  /* צבע הצלחה — למשל תגית "להשכרה" או "נמכרה" */
+  --color-success-50: #ecfdf5;
+  --color-success-500: #10b981;
+  --color-success-700: #047857;
+
+  /* צבע אזהרה סטטוסים בתהליך */
+  --color-warning-50: #fffbeb;
+  --color-warning-500: #f59e0b;
+  --color-warning-700: #b45309;
+}
+
+html,
+body {
+  @apply bg-white text-gray-900 antialiased;
+}
