@@ -111,6 +111,7 @@ function ensureApiKey() {
     const match = envFile.match(/^ANTHROPIC_API_KEY\s*=\s*"?([^"\n]+)"?/m)
     if (match) process.env.ANTHROPIC_API_KEY = match[1].trim()
   } catch {
+    confirm('חסר מפתח claude ')
     // אין קובץ .env ה-SDK ינסה פרופיל ant auth login
   }
 }
