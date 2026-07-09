@@ -27,7 +27,7 @@ import type {
   ImportSummary,
   ParsedUnit,
   UnitChange,
-} from '../../dashboard/import-types'
+} from '~/types'
 
 export function meta({}: Route.MetaArgs) {
   return [{ title: 'ייבוא חכם AI | תכלת נדל״ן' }]
@@ -297,7 +297,7 @@ function UnitRow({
         />
         {unit.change === 'priceChanged' && unit.oldPrice != null && (
           <Text as='p' variant='small' className='mt-0.5 line-through'>
-            {formatPrice(unit.oldPrice, currency)}
+            {formatPrice({ amount: unit.oldPrice, currency })}
           </Text>
         )}
       </td>

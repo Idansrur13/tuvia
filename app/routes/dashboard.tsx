@@ -3,6 +3,7 @@ import { Badge, Text, cn, fadeUp } from '../components/ui'
 import { motion } from 'motion/react'
 
 import { Logo } from '../components/logo'
+import { useLocale } from '~/i18n/locale'
 import {
   BuildingIcon,
   ChartAreaIcon,
@@ -18,31 +19,37 @@ import {
  */
 
 const CONTRACTOR_NAV = [
-  { to: '/dashboard', label: 'הפרויקטים שלי', icon: BuildingIcon, end: true },
+  {
+    to: '/dashboard',
+    labelKey: 'navMyProjects',
+    icon: BuildingIcon,
+    end: true,
+  },
   {
     to: '/dashboard/leads',
-    label: 'לידים והזמנות',
+    labelKey: 'navLeads',
     icon: FunnelIcon,
     end: false,
   },
   {
     to: '/dashboard/import',
-    label: 'ייבוא חכם AI',
+    labelKey: 'navImport',
     icon: SparklesIcon,
     end: false,
   },
 ] as const
 
 const COMING_SOON = [
-  { label: 'הלקוחות שלי', icon: UsersIcon },
-  { label: 'דוחות', icon: ChartAreaIcon },
-  { label: 'הגדרות', icon: SlidersIcon },
+  { labelKey: 'navMyClients', icon: UsersIcon },
+  { labelKey: 'navReports', icon: ChartAreaIcon },
+  { labelKey: 'navSettings', icon: SlidersIcon },
 ] as const
 
 function NavItems({ onNavigate }: { onNavigate?: () => void }) {
+  const { tt } = useLocale()
   return (
     <nav className='flex flex-col gap-1'>
-      {CONTRACTOR_NAV.map(({ to, label, icon: Icon, end }) => (
+      {CONTRACTOR_NAV.map(({ to, labelKey, icon: Icon, end }) => (
         <NavLink
           key={to}
           to={to}
@@ -58,7 +65,7 @@ function NavItems({ onNavigate }: { onNavigate?: () => void }) {
           }
         >
           <Icon className='h-5 w-5' />
-          {label}
+          {tt(labelKey)}
         </NavLink>
       ))}
     </nav>
@@ -66,6 +73,7 @@ function NavItems({ onNavigate }: { onNavigate?: () => void }) {
 }
 
 function UserCard() {
+  const { tt } = useLocale()
   return (
     <div className='flex items-center gap-3 rounded-2xl border border-gray-100 bg-gray-50 p-3'>
       <span className='flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary-500 font-bold text-white'>
@@ -77,13 +85,14 @@ function UserCard() {
           י.כ. בנייה ופיתוח בע״מ
         </Text>
       </div>
-      <Badge className='mr-auto shrink-0'>קבלן</Badge>
+      <Badge className='mr-auto shrink-0'>{tt('roleContractor')}</Badge>
     </div>
   )
 }
 
 export default function DashboardLayout() {
   const location = useLocation()
+  const { tt } = useLocale()
 
   return (
     <div className='min-h-screen bg-gray-50'>
@@ -104,10 +113,10 @@ export default function DashboardLayout() {
       <header className='sticky top-0 z-40 border-b border-gray-100 bg-white/90 backdrop-blur-md lg:hidden'>
         <div className='flex items-center justify-between px-4 py-3'>
           <Logo />
-          <Badge>קבלן</Badge>
+          <Badge>{tt('roleContractor')}</Badge>
         </div>
         <div className='flex gap-1 overflow-x-auto px-4 pb-3 scrollbar-none'>
-          {CONTRACTOR_NAV.map(({ to, label, end }) => (
+          {CONTRACTOR_NAV.map(({ to, labelKey, end }) => (
             <NavLink
               key={to}
               to={to}
@@ -121,7 +130,7 @@ export default function DashboardLayout() {
                 )
               }
             >
-              {label}
+              {tt(labelKey)}
             </NavLink>
           ))}
         </div>

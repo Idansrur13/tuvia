@@ -8,8 +8,9 @@ import path from 'node:path'
 import Anthropic from '@anthropic-ai/sdk'
 import { zodOutputFormat } from '@anthropic-ai/sdk/helpers/zod'
 import { z } from 'zod'
+
 import { getProjects } from './store.server'
-import type { ImportResult, ParsedProject, ParsedUnit } from './import-types'
+import type { ImportResult, ParsedProject, ParsedUnit } from '~/types'
 
 const MAX_FILE_BYTES = 20 * 1024 * 1024 // מגבלת ה-API היא 32MB לבקשה
 
@@ -121,16 +122,16 @@ function ensureApiKey() {
 function buildSystemPrompt() {
   const existing = getProjects().map((p) => ({
     id: p.id,
-    name: p.name,
-    city: p.city,
-    country: p.country,
-    currency: p.currency,
+    name: p.name.he,
+    city: p.address.city,
+    country: p.address.country.name.he,
+    currency: p.units[0]?.price.currency ?? 'USD',
     units: p.units.map((u) => ({
       id: u.id,
       name: u.name,
       rooms: u.rooms,
       sqm: u.sqm,
-      price: u.price,
+      price: u.price.amount,
       status: u.status,
     })),
   }))
@@ -243,7 +244,11 @@ function annotateChanges(ai: z.infer<typeof AiImportSchema>): ImportResult {
   const projects: ParsedProject[] = ai.projects.map((p) => {
     const existingProject =
       stored.find((s) => s.id === p.matchedProjectId) ??
-      stored.find((s) => s.name.trim() === p.name.trim())
+      stored.find(
+        (s) =>
+          s.name.he.trim() === p.name.trim() ||
+          s.name.en.trim() === p.name.trim(),
+      )
 
     if (!existingProject) summary.newProjects++
 
@@ -260,7 +265,7 @@ function annotateChanges(ai: z.infer<typeof AiImportSchema>): ImportResult {
         if (u.price === null) summary.sold++
         else summary.newUnits++
       } else if (u.price === null) {
-        oldPrice = existingUnit.price
+        oldPrice = existingUnit.price.amount
         if (existingUnit.status !== 'sold') {
           change = 'sold'
           summary.sold++
@@ -268,9 +273,9 @@ function annotateChanges(ai: z.infer<typeof AiImportSchema>): ImportResult {
           change = 'unchanged'
           summary.unchanged++
         }
-      } else if (u.price !== existingUnit.price) {
+      } else if (u.price !== existingUnit.price.amount) {
         change = 'priceChanged'
-        oldPrice = existingUnit.price
+        oldPrice = existingUnit.price.amount
         summary.priceChanges++
       } else {
         change = 'unchanged'
@@ -292,10 +297,10 @@ function annotateChanges(ai: z.infer<typeof AiImportSchema>): ImportResult {
     return {
       projectId: existingProject?.id ?? null,
       isNew: !existingProject,
-      name: existingProject?.name ?? p.name,
-      city: existingProject?.city ?? p.city,
-      country: existingProject?.country ?? p.country,
-      currency: existingProject?.currency ?? p.currency,
+      name: existingProject?.name.he ?? p.name,
+      city: existingProject?.address.city ?? p.city,
+      country: existingProject?.address.country.name.he ?? p.country,
+      currency: existingProject?.units[0]?.price.currency ?? p.currency,
       units,
     }
   })

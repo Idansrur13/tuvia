@@ -31,52 +31,26 @@ import {
 import { Logo } from '../components/logo'
 import { SiteFooter } from '../components/site-footer'
 import { SearchIcon, StarIcon } from 'lucide-react'
-import {
-  CATEGORIES,
-  DEAL_TYPE_OPTIONS,
-  IMG,
-  LISTINGS,
-  type DealType,
-} from './data'
+
 import { ListingCard } from './listing-card'
+import LogIn from '~/components/premisions/logIn'
+import type { DealType, ListingCategory } from '~/types'
+import { DEAL_TYPES, IMG, LISTINGS, LISTING_CATEGORIES } from '~/data'
+import { useLocale } from '~/i18n/locale'
+import { Header } from '~/components/premisions/header'
+
+type CategoryFilter = 'all' | ListingCategory
 
 /* ---------- Data ---------- */
 
 const HERO_STATS = [
-  { value: 1240, suffix: '+', label: 'נכסים פעילים' },
-  { value: 15, suffix: '', label: 'מדינות בעולם' },
-  { value: 320, suffix: '+', label: 'פרויקטים של קבלנים' },
-  { value: 98, suffix: '%', label: 'לקוחות מרוצים' },
+  { value: 1240, suffix: '+', labelKey: 'statActiveProperties' },
+  { value: 15, suffix: '', labelKey: 'statCountries' },
+  { value: 320, suffix: '+', labelKey: 'statProjects' },
+  { value: 98, suffix: '%', labelKey: 'statSatisfied' },
 ] as const
 
 /* ---------- Components ---------- */
-
-function SearchBar({
-  value,
-  onChange,
-  className,
-}: {
-  value: string
-  onChange: (value: string) => void
-  className?: string
-}) {
-  return (
-    <div
-      className={`flex items-center rounded-full border border-gray-200 bg-white py-1.5 pr-5 pl-2 shadow-sm transition hover:shadow-md focus-within:shadow-md ${className ?? ''}`}
-    >
-      <input
-        type='text'
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        placeholder='חיפוש לפי עיר, שכונה או תיאור...'
-        className='w-full bg-transparent text-sm outline-none placeholder:text-gray-400'
-      />
-      <IconButton aria-label='חיפוש'>
-        <SearchIcon className='h-4 w-4' />
-      </IconButton>
-    </div>
-  )
-}
 
 /** מספר שסופר את עצמו מ-0 כשהוא נכנס למסך */
 function CountUp({ to, suffix }: { to: number; suffix?: string }) {
@@ -133,12 +107,13 @@ function HeroSearchPanel({
 }: {
   onSearch: (
     query: string,
-    category: string,
+    category: CategoryFilter,
     dealType: DealType | 'all',
   ) => void
 }) {
+  const { t, tt } = useLocale()
   const [city, setCity] = useState('')
-  const [category, setCategory] = useState('הכל')
+  const [category, setCategory] = useState<CategoryFilter>('all')
   const [dealType, setDealType] = useState<DealType | 'all'>('all')
 
   return (
@@ -150,33 +125,33 @@ function HeroSearchPanel({
       className='rounded-2xl border border-white/70 bg-white/85 p-4 text-right shadow-xl shadow-primary-500/10 backdrop-blur-md'
     >
       <div className='grid items-end gap-3 sm:grid-cols-2 lg:grid-cols-[1.2fr_1fr_1fr_auto]'>
-        <Field label='עיר או שכונה'>
+        <Field label={tt('cityOrArea')}>
           <Input
             value={city}
             onChange={(e) => setCity(e.target.value)}
-            placeholder='למשל: תל אביב'
+            placeholder={tt('cityExample')}
           />
         </Field>
-        <Field label='סוג נכס'>
+        <Field label={tt('propertyType')}>
           <Select
             value={category}
-            onChange={(e) => setCategory(e.target.value)}
+            onChange={(e) => setCategory(e.target.value as CategoryFilter)}
           >
-            {CATEGORIES.map((c) => (
-              <option key={c.name} value={c.name}>
-                {c.name}
+            {LISTING_CATEGORIES.map((c) => (
+              <option key={c.id} value={c.id}>
+                {t(c.label)}
               </option>
             ))}
           </Select>
         </Field>
-        <Field label='סוג עסקה'>
+        <Field label={tt('dealTypeLabel')}>
           <Select
             value={dealType}
             onChange={(e) => setDealType(e.target.value as DealType | 'all')}
           >
-            {DEAL_TYPE_OPTIONS.map(([value, label]) => (
-              <option key={value} value={value}>
-                {label}
+            {DEAL_TYPES.map((d) => (
+              <option key={d.id} value={d.id}>
+                {t(d.label)}
               </option>
             ))}
           </Select>
@@ -186,7 +161,7 @@ function HeroSearchPanel({
           className='flex h-10 items-center justify-center gap-2 sm:col-span-2 lg:col-span-1'
         >
           <SearchIcon className='h-4 w-4' />
-          חיפוש
+          {tt('search')}
         </Button>
       </div>
     </form>
@@ -218,23 +193,27 @@ function FloatingBlob({
 }
 
 /* ---------- Page ---------- */
-
+function getListings() {
+  return LISTINGS
+}
 export function Listings() {
-  const [category, setCategory] = useState<string>('הכל')
+  const { t, tt } = useLocale()
+
+  const [category, setCategory] = useState<CategoryFilter>('all')
   const [dealType, setDealType] = useState<DealType | 'all'>('all')
   const [query, setQuery] = useState('')
 
   const filtered = useMemo(
     () =>
-      LISTINGS.filter((l) => {
-        if (category !== 'הכל' && l.category !== category) return false
+      getListings().filter((l) => {
+        if (category !== 'all' && l.category !== category) return false
         if (dealType !== 'all' && l.dealType !== dealType) return false
         if (query) {
           const q = query.trim()
           return (
-            l.city.includes(q) ||
-            l.neighborhood.includes(q) ||
-            l.title.includes(q)
+            l.address.city.includes(q) ||
+            l.address.neighborhood?.includes(q) ||
+            t(l.title).includes(q)
           )
         }
         return true
@@ -242,7 +221,11 @@ export function Listings() {
     [category, dealType, query],
   )
 
-  const handleHeroSearch = (q: string, cat: string, deal: DealType | 'all') => {
+  const handleHeroSearch = (
+    q: string,
+    cat: CategoryFilter,
+    deal: DealType | 'all',
+  ) => {
     setQuery(q)
     setCategory(cat)
     setDealType(deal)
@@ -255,40 +238,7 @@ export function Listings() {
     <MotionConfig reducedMotion='user'>
       <div className='min-h-screen overflow-x-hidden bg-linear-to-b from-primary-100 via-primary-50 to-white '>
         {/* Header */}
-        <motion.header
-          variants={fadeDown}
-          initial='hidden'
-          animate='visible'
-          className='sticky top-0  z-30 border-b border-gray-100 bg-white/90 backdrop-blur-md '
-        >
-          <div className='mx-auto flex max-w-7xl items-center justify-between gap-4 px-4 py-3 sm:px-6 lg:px-8'>
-            <Logo />
-
-            <div className='hidden flex-1 justify-center md:flex'>
-              <SearchBar
-                value={query}
-                onChange={setQuery}
-                className='w-full max-w-xl'
-              />
-            </div>
-
-            <nav className='flex items-center gap-2'>
-              <TextLink
-                href='/dashboard'
-                variant='nav'
-                className='hidden lg:block'
-              >
-                אזור קבלנים
-              </TextLink>
-              <Button>התחברות</Button>
-            </nav>
-          </div>
-
-          {/* Mobile search */}
-          <div className='px-4 pb-3 md:hidden'>
-            <SearchBar value={query} onChange={setQuery} />
-          </div>
-        </motion.header>
+        <Header query={query} setQuery={(q) => setQuery(q)} />
 
         {/* Hero */}
         <section className='relative overflow-hidden '>
@@ -312,9 +262,9 @@ export function Listings() {
               >
                 <motion.div variants={fadeUp}>
                   <Heading level={1} size='xl' className='leading-[1.15] '>
-                    הבית הבא שלכם{' '}
+                    {tt('heroTitle1')}{' '}
                     <span className='relative inline-block whitespace-nowrap text-primary-600'>
-                      מתחיל כאן
+                      {tt('heroTitle2')}
                       <motion.svg
                         aria-hidden
                         viewBox='0 0 200 12'
@@ -341,8 +291,7 @@ export function Listings() {
                     variant='lead'
                     className='mx-auto mt-5 max-w-xl lg:mx-0'
                   >
-                    נכסים נבחרים למכירה ולהשכרה, ישירות מהקבלנים המובילים — מתל
-                    אביב ועד מיאמי, בליווי אישי לאורך כל הדרך.
+                    {tt('heroLead')}
                   </Text>
                 </motion.div>
 
@@ -371,7 +320,7 @@ export function Listings() {
                     ))}
                   </div>
                   <Text as='span' variant='muted'>
-                    4.9 · מעל 1,200 רוכשים מצאו בית דרכנו
+                    {tt('heroTrust')}
                   </Text>
                 </motion.div>
               </motion.div>
@@ -457,13 +406,13 @@ export function Listings() {
               className='mt-14 grid grid-cols-2 gap-6 rounded-3xl border border-white/70 bg-white/60 p-6 text-center backdrop-blur sm:grid-cols-4 sm:p-8'
             >
               {HERO_STATS.map((stat) => (
-                <motion.div key={stat.label} variants={fadeUp}>
+                <motion.div key={stat.labelKey} variants={fadeUp}>
                   <dt className='text-2xl font-extrabold text-gray-900 sm:text-3xl'>
                     <CountUp to={stat.value} suffix={stat.suffix} />
                   </dt>
                   <dd>
                     <Text as='span' variant='muted'>
-                      {stat.label}
+                      {tt(stat.labelKey)}
                     </Text>
                   </dd>
                 </motion.div>
@@ -480,14 +429,14 @@ export function Listings() {
             animate='visible'
             className='mx-auto flex max-w-7xl gap-2 overflow-x-auto px-4 py-3 sm:px-6 lg:px-8 scrollbar-none'
           >
-            {CATEGORIES.map((c) => (
-              <motion.div key={c.name} variants={fadeDown}>
+            {LISTING_CATEGORIES.map((c) => (
+              <motion.div key={c.id} variants={fadeDown}>
                 <Chip
                   icon={c.icon}
-                  active={category === c.name}
-                  onClick={() => setCategory(c.name)}
+                  active={category === c.id}
+                  onClick={() => setCategory(c.id)}
                 >
-                  {c.name}
+                  {t(c.label)}
                 </Chip>
               </motion.div>
             ))}
@@ -501,16 +450,24 @@ export function Listings() {
         >
           <div className='mb-6 flex flex-wrap items-center justify-between gap-3'>
             <Heading level={2} size='md'>
-              {category === 'הכל' ? 'נכסים מובילים' : category}
+              {category === 'all'
+                ? tt('topProperties')
+                : t(
+                    LISTING_CATEGORIES.find((c) => c.id === category)
+                      ?.label ?? {
+                      he: '',
+                      en: '',
+                    },
+                  )}
             </Heading>
             <div className='flex items-center gap-3'>
               <ToggleGroup
-                options={DEAL_TYPE_OPTIONS}
+                options={DEAL_TYPES.map((d) => [d.id, t(d.label)] as const)}
                 value={dealType}
                 onChange={setDealType}
               />
               <Text as='span' variant='muted' className='hidden sm:block'>
-                {filtered.length} נכסים
+                {filtered.length} {tt('propertiesCount')}
               </Text>
             </div>
           </div>
@@ -522,11 +479,9 @@ export function Listings() {
               animate='visible'
               className='rounded-2xl border border-dashed border-gray-200 py-24 text-center'
             >
-              <Text className='text-lg font-semibold'>
-                לא נמצאו נכסים מתאימים
-              </Text>
+              <Text className='text-lg font-semibold'>{tt('noResults')}</Text>
               <Text variant='muted' className='mt-1'>
-                נסו לשנות את הסינון או את מילות החיפוש
+                {tt('noResultsHint')}
               </Text>
             </motion.div>
           ) : (
@@ -558,11 +513,9 @@ export function Listings() {
             />
             <div className='relative'>
               <Heading level={2} size='lg' className='text-white'>
-                יש לכם נכס למכירה?
+                {tt('ctaTitle')}
               </Heading>
-              <Text className='mt-2 text-primary-50'>
-                קבלו הערכת שווי חינם ושיווק מקצועי שימכור את הנכס שלכם מהר יותר.
-              </Text>
+              <Text className='mt-2 text-primary-50'>{tt('ctaText')}</Text>
             </div>
             <motion.div
               whileHover={{ scale: 1.04 }}
@@ -570,7 +523,7 @@ export function Listings() {
               className='relative shrink-0'
             >
               <Button variant='white' size='lg' className='font-bold'>
-                לקבלת הערכת שווי
+                {tt('ctaButton')}
               </Button>
             </motion.div>
           </motion.div>

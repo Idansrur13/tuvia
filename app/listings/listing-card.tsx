@@ -12,9 +12,11 @@ import {
   viewportOnce,
 } from '../components/ui'
 import { ChevronLeft, ChevronRight, HeartIcon } from 'lucide-react'
-import type { Listing } from './data'
+import type { Listing } from '~/types'
+import { useLocale } from '~/i18n/locale'
 
 export function ListingCard({ listing }: { listing: Listing }) {
+  const { t } = useLocale()
   const [imageIndex, setImageIndex] = useState(0)
   const [liked, setLiked] = useState(false)
 
@@ -52,9 +54,9 @@ export function ListingCard({ listing }: { listing: Listing }) {
           >
             {listing.images.map((src, i) => (
               <img
-                key={src}
-                src={src}
-                alt={listing.title}
+                key={src.id}
+                src={src.url}
+                alt={t(listing.title)}
                 loading={i === 0 ? 'eager' : 'lazy'}
                 className='h-full w-full shrink-0 object-cover transition-transform duration-500 group-hover:scale-[1.03]'
               />
@@ -66,7 +68,7 @@ export function ListingCard({ listing }: { listing: Listing }) {
               variant='overlay'
               className='absolute top-3 right-3 px-3 py-1'
             >
-              {listing.badge}
+              {t(listing.badge)}
             </Badge>
           )}
 
@@ -128,7 +130,7 @@ export function ListingCard({ listing }: { listing: Listing }) {
         <div className='mt-3 space-y-1'>
           <div className='flex items-start justify-between gap-2'>
             <h3 className='font-semibold leading-snug text-gray-900'>
-              {listing.title}
+              {t(listing.title)}
             </h3>
             <Badge
               variant={listing.dealType === 'sale' ? 'primary' : 'success'}
@@ -139,14 +141,18 @@ export function ListingCard({ listing }: { listing: Listing }) {
           </div>
 
           <Text variant='muted'>
-            {listing.neighborhood}, {listing.city}
+            {[listing.address.neighborhood, listing.address.city]
+              .filter(Boolean)
+              .join(', ')}
           </Text>
           <Text variant='muted'>
-            {listing.rooms} חדרים · {listing.sqm} מ״ר · קומה {listing.floor}
+            {listing.rooms} חדרים · {listing.sqm} מ״ר
+            {listing.floor && ` · קומה ${listing.floor}`}
           </Text>
 
           <Price
-            value={listing.price}
+            value={listing.price.amount}
+            currency={listing.price.currency}
             suffix={listing.dealType === 'rent' ? 'לחודש' : undefined}
             className='pt-1'
           />

@@ -21,12 +21,7 @@ import {
 import { Logo } from '../components/logo'
 import { SiteFooter } from '../components/site-footer'
 import { ListingCard } from '../listings/listing-card'
-import {
-  listingById,
-  sameProjectListings,
-  similarListings,
-  type Listing,
-} from '../listings/data'
+
 import {
   ArrowRightIcon,
   BedDoubleIcon,
@@ -43,16 +38,36 @@ import {
   Share2Icon,
   XIcon,
 } from 'lucide-react'
+import {
+  LISTING_CATEGORIES,
+  USERS,
+  listingById,
+  projectById,
+  sameProjectListings,
+  similarListings,
+} from '~/data'
+import type { Listing, MediaAsset } from '~/types'
+import { useLocale } from '~/i18n/locale'
+import LogIn from '~/components/premisions/logIn'
+import { Header } from '~/components/premisions/header'
 
-export function meta({ data }: Route.MetaArgs) {
+export function meta({ matches }: Route.MetaArgs) {
+  const match = matches.find((m) => m?.id === 'routes/property')
+  const listing = (match?.loaderData as { listing?: Listing } | undefined)
+    ?.listing
   return [
-    { title: data ? `${data.listing.title} | תכלת נדל״ן` : 'תכלת נדל״ן' },
-    { name: 'description', content: data?.listing.description.slice(0, 150) },
+    {
+      title: listing ? `${listing.title.he} | תכלת נדל״ן` : 'תכלת נדל״ן',
+    },
+    {
+      name: 'description',
+      content: listing?.description.he.slice(0, 150) ?? '',
+    },
   ]
 }
 
 export async function loader({ params }: Route.LoaderArgs) {
-  const listing = listingById(Number(params.id))
+  const listing = listingById(params.id)
   if (!listing) throw data('הנכס לא נמצא', { status: 404 })
 
   const fromProject = sameProjectListings(listing)
@@ -71,11 +86,12 @@ function Lightbox({
   onClose,
   onIndex,
 }: {
-  images: string[]
+  images: MediaAsset[]
   index: number
   onClose: () => void
   onIndex: (i: number) => void
 }) {
+  const { tt } = useLocale()
   return (
     <motion.div
       initial={{ opacity: 0 }}
@@ -86,7 +102,7 @@ function Lightbox({
     >
       <button
         type='button'
-        aria-label='סגירה'
+        aria-label={tt('imgClose')}
         className='absolute top-4 right-4 rounded-full bg-white/10 p-2 text-white transition hover:bg-white/20'
       >
         <XIcon className='h-5 w-5' />
@@ -94,8 +110,8 @@ function Lightbox({
 
       <motion.img
         key={index}
-        src={images[index]}
-        alt=''
+        src={images[index].url}
+        alt={images[index].name}
         initial={{ opacity: 0, scale: 0.96 }}
         animate={{ opacity: 1, scale: 1 }}
         transition={{ duration: 0.25 }}
@@ -105,7 +121,7 @@ function Lightbox({
 
       <button
         type='button'
-        aria-label='תמונה קודמת'
+        aria-label={tt('imgPrev')}
         onClick={(e) => {
           e.stopPropagation()
           onIndex((index - 1 + images.length) % images.length)
@@ -116,7 +132,7 @@ function Lightbox({
       </button>
       <button
         type='button'
-        aria-label='תמונה הבאה'
+        aria-label={tt('imgNext')}
         onClick={(e) => {
           e.stopPropagation()
           onIndex((index + 1) % images.length)
@@ -134,8 +150,11 @@ function Lightbox({
 }
 
 function ContactCard({ listing }: { listing: Listing }) {
+  const { tt } = useLocale()
   const [sent, setSent] = useState(false)
-  const perSqm = Math.round(listing.price / listing.sqm)
+  const agent = USERS.find((u) => u.id === listing.agentId)
+  const agentName = agent?.name ?? tt('roleAgent')
+  const perSqm = Math.round(listing.price.amount / listing.sqm)
 
   return (
     <Card className='sticky top-24 space-y-5 shadow-lg shadow-primary-500/5'>
@@ -147,17 +166,17 @@ function ContactCard({ listing }: { listing: Listing }) {
             {listing.dealType === 'rent' && (
               <span className='text-base font-normal text-gray-500'>
                 {' '}
-                / לחודש
+                / {tt('perMonth')}
               </span>
             )}
           </p>
           <Badge variant={listing.dealType === 'sale' ? 'primary' : 'success'}>
-            {listing.dealType === 'sale' ? 'למכירה' : 'להשכרה'}
+            {listing.dealType === 'sale' ? tt('forSale') : tt('forRent')}
           </Badge>
         </div>
         {listing.dealType === 'sale' && (
           <Text variant='small' className='mt-1'>
-            {formatPrice(perSqm)} למ״ר
+            {perSqm} {tt('perSqm')}
           </Text>
         )}
       </div>
@@ -165,17 +184,20 @@ function ContactCard({ listing }: { listing: Listing }) {
       {/* Agent */}
       <div className='flex items-center gap-3 rounded-xl bg-gray-50 p-3'>
         <span className='flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-primary-500 font-bold text-white'>
-          {listing.agent.slice(0, 1)}
+          {agentName.slice(0, 1)}
         </span>
         <div className='min-w-0 flex-1'>
-          <p className='text-sm font-semibold text-gray-900'>{listing.agent}</p>
+          <p className='text-sm font-semibold text-gray-900'>{agentName}</p>
           <Text as='p' variant='small'>
-            סוכנ/ת מלווה · תכלת נדל״ן
+            {listing.agentRole === 'contractor'
+              ? tt('roleContractor')
+              : tt('roleAgent')}{' '}
+            · {tt('brandName')}
           </Text>
         </div>
         <a
-          href={`tel:${listing.agentPhone}`}
-          aria-label='חיוג לסוכן'
+          href={`tel:${agent?.phone ?? ''}`}
+          aria-label={tt('callAgent')}
           className='flex h-10 w-10 items-center justify-center rounded-full bg-white text-primary-600 shadow-sm transition hover:bg-primary-50'
         >
           <PhoneIcon className='h-4 w-4' />
@@ -189,9 +211,9 @@ function ContactCard({ listing }: { listing: Listing }) {
           animate={{ opacity: 1, scale: 1 }}
           className='rounded-xl bg-success-50 px-4 py-5 text-center'
         >
-          <p className='font-bold text-success-700'>הפרטים נשלחו!</p>
+          <p className='font-bold text-success-700'>{tt('detailsSent')}</p>
           <Text variant='small' className='mt-1'>
-            {listing.agent} תחזור אליכם תוך שעות ספורות לתיאום סיור.
+            {agentName} {tt('agentWillContact')}
           </Text>
         </motion.div>
       ) : (
@@ -202,10 +224,10 @@ function ContactCard({ listing }: { listing: Listing }) {
             setSent(true)
           }}
         >
-          <Field label='שם מלא'>
-            <Input name='name' required placeholder='ישראל ישראלי' />
+          <Field label={tt('fullName')}>
+            <Input name='name' required placeholder={tt('fullNamePlaceholder')} />
           </Field>
-          <Field label='טלפון'>
+          <Field label={tt('phone')}>
             <Input
               name='phone'
               type='tel'
@@ -216,10 +238,10 @@ function ContactCard({ listing }: { listing: Listing }) {
             />
           </Field>
           <Button type='submit' className='w-full'>
-            תיאום סיור בנכס
+            {tt('scheduleViewing')}
           </Button>
           <Text as='p' variant='small' className='text-center'>
-            ללא התחייבות · המידע לא יועבר לגורם שלישי
+            {tt('noObligation')}
           </Text>
         </form>
       )}
@@ -265,7 +287,10 @@ function ListingsRow({
 /* ---------- העמוד ---------- */
 
 export default function PropertyPage({ loaderData }: Route.ComponentProps) {
+  const { t, tt } = useLocale()
   const { listing, fromProject, similar } = loaderData
+  const project = listing.projectId ? projectById(listing.projectId) : undefined
+  const projectName = project ? t(project.name) : ''
   const [lightbox, setLightbox] = useState<number | null>(null)
   const [liked, setLiked] = useState(false)
   const [copied, setCopied] = useState(false)
@@ -281,36 +306,33 @@ export default function PropertyPage({ loaderData }: Route.ComponentProps) {
   }
 
   const highlights = [
-    { icon: BedDoubleIcon, label: 'חדרים', value: String(listing.rooms) },
-    { icon: MaximizeIcon, label: 'שטח', value: `${listing.sqm} מ״ר` },
-    { icon: BuildingIcon, label: 'קומה', value: listing.floor },
+    { icon: BedDoubleIcon, label: tt('hlRooms'), value: String(listing.rooms) },
+    {
+      icon: MaximizeIcon,
+      label: tt('hlArea'),
+      value: `${listing.sqm} ${tt('colSqm')}`,
+    },
+    { icon: BuildingIcon, label: tt('hlFloor'), value: listing.floor ?? '—' },
     {
       icon: CarIcon,
-      label: 'חניות',
-      value: listing.parking > 0 ? String(listing.parking) : 'ללא',
+      label: tt('hlParking'),
+      value: (listing.parking ?? 0) > 0 ? String(listing.parking) : tt('hlNone'),
     },
-    { icon: CalendarIcon, label: 'כניסה', value: listing.entry },
+    {
+      icon: CalendarIcon,
+      label: tt('hlEntry'),
+      value:
+        !listing.entry || listing.entry === 'flexible'
+          ? tt('flexible')
+          : listing.entry,
+    },
   ]
 
   return (
     <MotionConfig reducedMotion='user'>
       <div className='min-h-screen bg-white'>
         {/* Header */}
-        <header className='sticky top-0 z-30 border-b border-gray-100 bg-white/90 backdrop-blur-md'>
-          <div className='mx-auto flex max-w-7xl items-center justify-between gap-4 px-4 py-3 sm:px-6 lg:px-8'>
-            <Logo />
-            <nav className='flex items-center gap-2'>
-              <TextLink
-                href='/dashboard'
-                variant='nav'
-                className='hidden lg:block'
-              >
-                אזור קבלנים
-              </TextLink>
-              <Button>התחברות</Button>
-            </nav>
-          </div>
-        </header>
+        <Header />
 
         <main className='mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8'>
           {/* Breadcrumb */}
@@ -325,12 +347,12 @@ export default function PropertyPage({ loaderData }: Route.ComponentProps) {
               className='flex items-center gap-1 transition hover:text-primary-600'
             >
               <ArrowRightIcon className='h-4 w-4' />
-              כל הנכסים
+              {tt('allProperties')}
             </Link>
             <span>/</span>
-            <span>{listing.city}</span>
+            <span>{listing.address.city}</span>
             <span>/</span>
-            <span className='truncate text-gray-900'>{listing.title}</span>
+            <span className='truncate text-gray-900'>{t(listing.title)}</span>
           </motion.nav>
 
           {/* Title row */}
@@ -343,14 +365,20 @@ export default function PropertyPage({ loaderData }: Route.ComponentProps) {
             <div>
               <div className='flex flex-wrap items-center gap-2'>
                 <Heading level={1} size='lg'>
-                  {listing.title}
+                  {t(listing.title)}
                 </Heading>
-                {listing.badge && <Badge>{listing.badge}</Badge>}
+                {listing.badge && <Badge>{t(listing.badge)}</Badge>}
               </div>
               <Text variant='muted' className='mt-1.5 flex items-center gap-1'>
                 <MapPinIcon className='h-4 w-4 text-primary-500' />
-                {listing.address}, {listing.neighborhood}, {listing.city}
-                {listing.project && ` · פרויקט ${listing.project}`}
+                {[
+                  listing.address.street,
+                  listing.address.neighborhood,
+                  listing.address.city,
+                ]
+                  .filter(Boolean)
+                  .join(', ')}
+                {projectName && ` · ${projectName}`}
               </Text>
             </div>
 
@@ -362,7 +390,7 @@ export default function PropertyPage({ loaderData }: Route.ComponentProps) {
                 className='flex items-center gap-1.5'
               >
                 <Share2Icon className='h-4 w-4' />
-                {copied ? 'הקישור הועתק!' : 'שיתוף'}
+                {copied ? tt('linkCopied') : tt('share')}
               </Button>
               <Button
                 variant='outline'
@@ -376,7 +404,7 @@ export default function PropertyPage({ loaderData }: Route.ComponentProps) {
                     liked && 'fill-primary-500 stroke-primary-500',
                   )}
                 />
-                {liked ? 'נשמר' : 'שמירה'}
+                {liked ? tt('saved') : tt('save')}
               </Button>
             </div>
           </motion.div>
@@ -394,26 +422,26 @@ export default function PropertyPage({ loaderData }: Route.ComponentProps) {
               className='group relative col-span-2 row-span-2'
             >
               <img
-                src={listing.images[0]}
-                alt={listing.title}
+                src={listing.images[0].url}
+                alt={listing.images[0].name}
                 className='h-full max-h-110 w-full object-cover transition duration-500 group-hover:scale-[1.02]'
               />
             </button>
             {listing.images.slice(1, 3).map((src, i) => (
               <button
-                key={src}
+                key={src.id}
                 type='button'
                 onClick={() => setLightbox(i + 1)}
                 className='group relative'
               >
                 <img
-                  src={src}
-                  alt={listing.title}
+                  src={src.url}
+                  alt={t(listing.title)}
                   className='h-full max-h-52 w-full object-cover transition duration-500 group-hover:scale-[1.03]'
                 />
                 {i === 1 && (
                   <span className='absolute inset-0 flex items-center justify-center bg-gray-900/30 text-sm font-semibold text-white opacity-0 transition group-hover:opacity-100'>
-                    לכל התמונות
+                    {tt('allPhotos')}
                   </span>
                 )}
               </button>
@@ -450,31 +478,35 @@ export default function PropertyPage({ loaderData }: Route.ComponentProps) {
               {/* Description */}
               <motion.div variants={fadeUp}>
                 <Heading level={2} size='md'>
-                  על הנכס
+                  {tt('aboutProperty')}
                 </Heading>
                 <Text variant='body' className='mt-3 leading-relaxed'>
-                  {listing.description}
+                  {t(listing.description)}
                 </Text>
                 <Text variant='muted' className='mt-3'>
-                  שנת בנייה: {listing.yearBuilt} · קטגוריה: {listing.category}
+                  {tt('builtYear')}: {listing.yearBuilt} · {tt('categoryLabel')}:{' '}
+                  {t(
+                    LISTING_CATEGORIES.find((c) => c.id === listing.category)
+                      ?.label ?? { he: '', en: '' },
+                  )}
                 </Text>
               </motion.div>
 
               {/* Features */}
               <motion.div variants={fadeUp}>
                 <Heading level={2} size='md'>
-                  מה יש בנכס
+                  {tt('whatsIncluded')}
                 </Heading>
                 <ul className='mt-4 grid grid-cols-1 gap-x-6 gap-y-2.5 sm:grid-cols-2'>
-                  {listing.features.map((feature) => (
+                  {listing.features.map((feature, i) => (
                     <li
-                      key={feature}
+                      key={i}
                       className='flex items-center gap-2.5 text-sm text-gray-700'
                     >
                       <span className='flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary-50 text-primary-600'>
                         <CheckIcon className='h-3 w-3' />
                       </span>
-                      {feature}
+                      {t(feature)}
                     </li>
                   ))}
                 </ul>
@@ -483,18 +515,21 @@ export default function PropertyPage({ loaderData }: Route.ComponentProps) {
               {/* Location */}
               <motion.div variants={fadeUp}>
                 <Heading level={2} size='md'>
-                  מיקום
+                  {tt('location')}
                 </Heading>
                 <div className='mt-4 flex h-56 flex-col items-center justify-center gap-2 rounded-2xl border border-gray-100 bg-linear-to-b from-primary-50 to-white'>
                   <span className='flex h-12 w-12 items-center justify-center rounded-full bg-white text-primary-500 shadow-md'>
                     <MapPinIcon className='h-6 w-6' />
                   </span>
                   <p className='font-semibold text-gray-900'>
-                    {listing.address}, {listing.city}
+                    {[listing.address.street, listing.address.city]
+                      .filter(Boolean)
+                      .join(', ')}
                   </p>
                   <Text variant='small'>
-                    שכונת {listing.neighborhood} · המיקום המדויק יימסר בתיאום
-                    סיור
+                    {listing.address.neighborhood &&
+                      `${tt('neighborhoodPrefix')} ${listing.address.neighborhood} · `}
+                    {tt('exactLocationNote')}
                   </Text>
                 </div>
               </motion.div>
@@ -512,16 +547,13 @@ export default function PropertyPage({ loaderData }: Route.ComponentProps) {
 
           {/* עוד מאותו פרויקט */}
           <ListingsRow
-            title={`עוד בפרויקט ${listing.project ?? ''}`}
-            subtitle='נכסים נוספים שמשווקים כרגע באותו פרויקט'
+            title={`${tt('moreInProject')} ${projectName}`}
+            subtitle={tt('moreInProjectSub')}
             listings={fromProject}
           />
 
           {/* נכסים דומים */}
-          <ListingsRow
-            title='נכסים דומים שאולי יעניינו אתכם'
-            listings={similar}
-          />
+          <ListingsRow title={tt('similarProperties')} listings={similar} />
         </main>
 
         <SiteFooter />
