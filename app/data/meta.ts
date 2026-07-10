@@ -2,7 +2,15 @@
  * מטא-נתונים לתצוגה: תוויות רב-לשוניות וצבעים לסטטוסים.
  * מחליף את UNIT_STATUS / LEAD_STAGES הישנים — עכשיו רב-לשוני (פרק 14).
  */
-import type { DealStage, LeadStage, Localized, UnitStatus } from '~/types'
+import type {
+  DealStage,
+  LeadActivity,
+  LeadHeat,
+  LeadSource,
+  LeadStage,
+  Localized,
+  UnitStatus,
+} from '~/types'
 import { L } from './util'
 
 type BadgeTone = 'primary' | 'neutral' | 'warning' | 'success' | 'danger'
@@ -59,4 +67,45 @@ export const DEAL_STAGE_META: Record<
   construction: { label: L('בנייה', 'Construction'), order: 3 },
   handover: { label: L('מסירה', 'Handover'), order: 4 },
   completed: { label: L('הושלם', 'Completed'), order: 5 },
+}
+
+/** חום הליד — לתיעדוף בתצוגה המצומצמת (פרק 13). */
+export const LEAD_HEAT_META: Record<
+  LeadHeat,
+  { label: Localized; dot: string; text: string; order: number }
+> = {
+  hot: { label: L('חם', 'Hot'), dot: 'bg-red-500', text: 'text-red-600', order: 0 },
+  warm: {
+    label: L('פושר', 'Warm'),
+    dot: 'bg-amber-400',
+    text: 'text-amber-600',
+    order: 1,
+  },
+  cold: {
+    label: L('קר', 'Cold'),
+    dot: 'bg-sky-400',
+    text: 'text-sky-600',
+    order: 2,
+  },
+}
+
+/** מקורות לידים — לניתוב, סינון ודוחות. */
+export const LEAD_SOURCE_META: Record<LeadSource, { label: Localized }> = {
+  marketplace: { label: L('מרקטפלייס', 'Marketplace') },
+  aiAssistant: { label: L('בוט AI', 'AI assistant') },
+  referral: { label: L('המלצה', 'Referral') },
+  campaign: { label: L('קמפיין', 'Campaign') },
+  manual: { label: L('ידני', 'Manual') },
+}
+
+/** סוגי פעילות על כרטיס הליד — ליומן הפעילות. */
+export const LEAD_ACTIVITY_META: Record<
+  LeadActivity['kind'],
+  { label: Localized }
+> = {
+  call: { label: L('שיחה', 'Call') },
+  message: { label: L('הודעה', 'Message') },
+  meeting: { label: L('פגישה', 'Meeting') },
+  note: { label: L('הערה', 'Note') },
+  stageChange: { label: L('שינוי שלב', 'Stage change') },
 }

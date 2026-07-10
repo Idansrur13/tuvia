@@ -1,4 +1,5 @@
-import { SearchIcon } from 'lucide-react'
+import { SearchIcon, SparklesIcon } from 'lucide-react'
+import { Link } from 'react-router'
 import { motion } from 'motion/react'
 import { Logo } from '../logo'
 import { fadeDown, IconButton, TextLink } from '../ui'
@@ -16,6 +17,7 @@ function SearchBar({
   className?: string
 }) {
   const { tt } = useLocale()
+
   return (
     <div
       className={`flex items-center rounded-full border border-gray-200 bg-white py-1.5 pr-5 pl-2 shadow-sm transition hover:shadow-md focus-within:shadow-md ${className ?? ''}`}
@@ -26,7 +28,7 @@ function SearchBar({
         onChange={(e) => onChange(e.target.value)}
         placeholder={tt('searchPlaceholder')}
         className='w-full bg-transparent text-sm outline-none placeholder:text-gray-400'
-      />
+      ></input>
       <IconButton aria-label={tt('search')}>
         <SearchIcon className='h-4 w-4' />
       </IconButton>
@@ -64,6 +66,13 @@ export function Header({
         )}
 
         <nav className='flex items-center gap-2'>
+          <Link
+            to='/assistant'
+            className='inline-flex items-center gap-1.5 rounded-full bg-linear-to-l from-primary-500 to-accent-400 px-3.5 py-1.5 text-sm font-semibold text-white shadow-sm transition hover:shadow-md'
+          >
+            <SparklesIcon className='h-4 w-4' />
+            <span className='hidden sm:block'>{tt('navAssistant')}</span>
+          </Link>
           <TextLink href='/dashboard' variant='nav' className='hidden lg:block'>
             {tt('contractorsArea')}
           </TextLink>

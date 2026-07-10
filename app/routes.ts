@@ -3,6 +3,7 @@ import { type RouteConfig, index, route } from "@react-router/dev/routes";
 export default [
   index("routes/home.tsx"),
   route("property/:id", "routes/property.tsx"),
+  route("assistant", "routes/assistant.tsx"),
 
   /*
    * אזור הדשבורד — מחולק לפי תפקידים.
@@ -13,5 +14,6 @@ export default [
     index("routes/dashboard/projects.tsx"),
     route("leads", "routes/dashboard/leads.tsx"),
     route("import", "routes/dashboard/import.tsx"),
+    route("chat", "routes/dashboard/chat.tsx"),
   ]),
 ] satisfies RouteConfig;

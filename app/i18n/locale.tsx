@@ -26,6 +26,8 @@ interface LocaleContextValue {
   tt: (key: DictKey) => string
   /** פורמט תאריך ISO לפי השפה. */
   formatDate: (iso: string) => string
+  /** פורמט שעה (HH:mm) לפי השפה — לצ׳אט והתראות. */
+  formatTime: (iso: string) => string
 }
 
 const LocaleContext = createContext<LocaleContextValue | null>(null)
@@ -61,6 +63,11 @@ export function LocaleProvider({ children }: { children: ReactNode }) {
           day: '2-digit',
           month: '2-digit',
           year: 'numeric',
+        }).format(new Date(iso)),
+      formatTime: (iso) =>
+        new Intl.DateTimeFormat(intlLocale, {
+          hour: '2-digit',
+          minute: '2-digit',
         }).format(new Date(iso)),
     }
   }, [locale])

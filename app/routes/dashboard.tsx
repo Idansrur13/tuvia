@@ -8,6 +8,7 @@ import {
   BuildingIcon,
   ChartAreaIcon,
   FunnelIcon,
+  MessageSquareIcon,
   SlidersIcon,
   SparklesIcon,
   UsersIcon,
@@ -37,6 +38,12 @@ const CONTRACTOR_NAV = [
     icon: SparklesIcon,
     end: false,
   },
+  {
+    to: '/dashboard/chat',
+    labelKey: 'navChat',
+    icon: MessageSquareIcon,
+    end: false,
+  },
 ] as const
 
 const COMING_SOON = [
@@ -48,7 +55,7 @@ const COMING_SOON = [
 function NavItems({ onNavigate }: { onNavigate?: () => void }) {
   const { tt } = useLocale()
   return (
-    <nav className='flex flex-col gap-1'>
+    <nav className='flex flex-col  gap-1'>
       {CONTRACTOR_NAV.map(({ to, labelKey, icon: Icon, end }) => (
         <NavLink
           key={to}
@@ -57,7 +64,7 @@ function NavItems({ onNavigate }: { onNavigate?: () => void }) {
           onClick={onNavigate}
           className={({ isActive }) =>
             cn(
-              'flex items-center gap-3 rounded-xl px-3.5 py-2.5 text-sm font-medium transition',
+              'flex items-center gap-3 rounded-xl px-2 border border-primary-50 py-2.5 text-sm font-medium transition ',
               isActive
                 ? 'bg-primary-50 text-primary-700'
                 : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900',
@@ -102,7 +109,7 @@ export default function DashboardLayout() {
           <Logo />
         </div>
 
-        <div className='mt-6 flex-1'>
+        <div className='mt-6 flex-1 '>
           <NavItems />
         </div>
 

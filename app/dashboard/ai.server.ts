@@ -3,12 +3,11 @@
  * PDF נשלח כ-document block, תמונות כ-image block, DOCX מחולץ לטקסט (mammoth),
  * ושאר הקבצים נשלחים כטקסט. הפלט נאכף עם structured outputs (Zod).
  */
-import fs from 'node:fs'
-import path from 'node:path'
 import Anthropic from '@anthropic-ai/sdk'
 import { zodOutputFormat } from '@anthropic-ai/sdk/helpers/zod'
 import { z } from 'zod'
 
+import { ensureApiKey } from './anthropic.server'
 import { getProjects } from './store.server'
 import type { ImportResult, ParsedProject, ParsedUnit } from '~/types'
 
@@ -97,23 +96,6 @@ async function fileToContentBlock(file: File): Promise<ContentBlock> {
   return {
     type: 'text',
     text: `תוכן הקובץ ${file.name}:\n\n${buffer.toString('utf-8')}`,
-  }
-}
-
-/* ---------- קריאת מפתח API מ-.env אם לא הוגדר בסביבה ---------- */
-
-function ensureApiKey() {
-  if (process.env.ANTHROPIC_API_KEY) return
-  try {
-    const envFile = fs.readFileSync(
-      path.resolve(process.cwd(), '.env'),
-      'utf-8',
-    )
-    const match = envFile.match(/^ANTHROPIC_API_KEY\s*=\s*"?([^"\n]+)"?/m)
-    if (match) process.env.ANTHROPIC_API_KEY = match[1].trim()
-  } catch {
-    confirm('חסר מפתח claude ')
-    // אין קובץ .env ה-SDK ינסה פרופיל ant auth login
   }
 }
 

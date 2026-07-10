@@ -92,9 +92,14 @@ function Gallery({
 
   return (
     <div>
-      <div className='mb-2 flex items-center justify-between'>
+      <div className='p-2'>
+        <div className='mb-2 flex items-center justify-between'>
+          <Text as='span' variant='muted' className='font-medium'>
+            {tt('projectGallery')} ({imgs.length})
+          </Text>
+        </div>
         <Text as='span' variant='muted' className='font-medium'>
-          {tt('projectGallery')} ({imgs.length})
+          <div>{t(project.description)}</div>
         </Text>
       </div>
       <div className='flex gap-2 overflow-x-auto pb-1 scrollbar-none'>
@@ -123,7 +128,6 @@ function Gallery({
           onChange={(e) => addFiles(Array.from(e.target.files ?? []))}
         />
       </div>
-      <div>{t(project.description)}</div>
     </div>
   )
 }
@@ -233,14 +237,19 @@ export default function ContractorProjects({
         {projects.map((p) => (
           <Chip
             key={p.id}
-            icon={p.address.country.flag}
+            icon={
+              <img src={p.cover.url} alt='' className='size-10 rounded-xl' />
+            }
             active={p.id === project.id}
             onClick={() => {
               setSelectedId(p.id)
               setStatusFilter('all')
             }}
           >
-            {t(p.name)}
+            <div className='text-start'>
+              {p.address.country.flag}
+              <p>{t(p.name)}</p>
+            </div>
           </Chip>
         ))}
       </div>

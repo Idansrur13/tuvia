@@ -28,9 +28,11 @@ import type {
   ParsedUnit,
   UnitChange,
 } from '~/types'
+import { useLocale } from '~/i18n/locale'
+import type { DictKey } from '~/i18n/dictionary'
 
 export function meta({}: Route.MetaArgs) {
-  return [{ title: 'ייבוא חכם AI | תכלת נדל״ן' }]
+  return [{ title: 'ייבוא חכם AI | AI Import' }]
 }
 
 /* ---------- Action: שלב הניתוח ושלב השמירה ---------- */
@@ -48,7 +50,8 @@ export async function action({
 
   if (intent === 'parse') {
     const file = formData.get('file')
-    if (!(file instanceof File) || !file.name) return { error: 'לא נבחר קובץ' }
+    // מחזירים קוד שגיאה (ולא טקסט) כדי שהלקוח יתרגם לפי השפה
+    if (!(file instanceof File) || !file.name) return { error: 'noFile' }
     const { parseFileWithAi } = await import('../../dashboard/ai.server')
     const outcome = await parseFileWithAi(file)
     return outcome.ok ? { result: outcome.result } : { error: outcome.error }
@@ -60,24 +63,31 @@ export async function action({
       const { applyImport } = await import('../../dashboard/store.server')
       return { saved: applyImport(result) }
     } catch {
-      return { error: 'שמירת הנתונים נכשלה. נסו שוב.' }
+      return { error: 'saveFailed' }
     }
   }
 
-  return { error: 'פעולה לא מוכרת' }
+  return { error: 'unknownAction' }
+}
+
+/** קודי שגיאה שה-action מחזיר → מפתח תרגום. הודעות אחרות (מ-ai.server) מוצגות כמות שהן. */
+const ERROR_KEYS: Record<string, DictKey> = {
+  noFile: 'impErrNoFile',
+  saveFailed: 'impErrSaveFailed',
+  unknownAction: 'impErrUnknown',
 }
 
 /* ---------- תצוגת שינויים ---------- */
 
-const CHANGE_META: Record<
-  UnitChange,
-  { label: string; badge: 'primary' | 'success' | 'warning' | 'neutral' }
-> = {
-  new: { label: 'יחידה חדשה', badge: 'primary' },
-  priceChanged: { label: 'עדכון מחיר', badge: 'warning' },
-  sold: { label: 'נמכרה', badge: 'success' },
-  unchanged: { label: 'ללא שינוי', badge: 'neutral' },
-}
+type BadgeTone = 'primary' | 'success' | 'warning' | 'neutral'
+
+const CHANGE_META: Record<UnitChange, { labelKey: DictKey; badge: BadgeTone }> =
+  {
+    new: { labelKey: 'impChangeNew', badge: 'primary' },
+    priceChanged: { labelKey: 'impChangePrice', badge: 'warning' },
+    sold: { labelKey: 'impChangeSold', badge: 'success' },
+    unchanged: { labelKey: 'impChangeUnchanged', badge: 'neutral' },
+  }
 
 function computeSummary(result: ImportResult): ImportSummary {
   const units = result.projects.flatMap((p) => p.units)
@@ -90,19 +100,19 @@ function computeSummary(result: ImportResult): ImportSummary {
   }
 }
 
-function downloadCsv(result: ImportResult) {
+function downloadCsv(result: ImportResult, tt: (k: DictKey) => string) {
   const rows: (string | number)[][] = [
     [
-      'פרויקט',
-      'עיר',
-      'מדינה',
-      'מטבע',
-      'יחידה',
-      'חדרים',
-      'מ"ר',
-      'מחיר',
-      'סטטוס',
-      'שינוי',
+      tt('impCsvProject'),
+      tt('impCsvCity'),
+      tt('impCsvCountry'),
+      tt('currencyLabel'),
+      tt('colUnit'),
+      tt('colRooms'),
+      tt('colSqm'),
+      tt('impCsvPrice'),
+      tt('impCsvStatus'),
+      tt('impColChange'),
     ],
   ]
   for (const p of result.projects) {
@@ -116,8 +126,8 @@ function downloadCsv(result: ImportResult) {
         u.rooms ?? '',
         u.sqm ?? '',
         u.price ?? '',
-        u.price === null ? 'נמכרה' : 'למכירה',
-        CHANGE_META[u.change].label,
+        u.price === null ? tt('impSoldPlaceholder') : tt('forSale'),
+        tt(CHANGE_META[u.change].labelKey),
       ])
     }
   }
@@ -140,14 +150,15 @@ function downloadCsv(result: ImportResult) {
 /* ---------- קומפוננטות משנה ---------- */
 
 function Stepper({ step }: { step: 1 | 2 | 3 }) {
-  const steps = ['העלאת קובץ', 'בדיקה ואישור', 'שמירה במערכת']
+  const { tt } = useLocale()
+  const steps = [tt('impStep1'), tt('impStep2'), tt('impStep3')]
   return (
     <ol className='flex items-center gap-2 sm:gap-4'>
       {steps.map((label, i) => {
         const n = (i + 1) as 1 | 2 | 3
         const state = n < step ? 'done' : n === step ? 'active' : 'todo'
         return (
-          <li key={label} className='flex flex-1 items-center gap-2 sm:gap-3'>
+          <li key={n} className='flex flex-1 items-center gap-2 sm:gap-3'>
             <span
               className={cn(
                 'flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-sm font-bold transition',
@@ -185,6 +196,7 @@ function Dropzone({
   onFile: (file: File | null) => void
   disabled: boolean
 }) {
+  const { tt } = useLocale()
   const inputRef = useRef<HTMLInputElement>(null)
   const [dragging, setDragging] = useState(false)
 
@@ -214,11 +226,9 @@ function Dropzone({
           <UploadCloudIcon className='h-7 w-7' />
         </span>
         <div>
-          <p className='font-semibold text-gray-900'>
-            גררו לכאן קובץ או לחצו לבחירה
-          </p>
+          <p className='font-semibold text-gray-900'>{tt('impDropTitle')}</p>
           <Text variant='muted' className='mt-1'>
-            PDF · Word · Excel/CSV · טקסט · תמונה של מחירון — הבוט יסתדר עם הכל
+            {tt('impDropHint')}
           </Text>
         </div>
       </div>
@@ -250,7 +260,7 @@ function Dropzone({
           {!disabled && (
             <button
               type='button'
-              aria-label='הסרת הקובץ'
+              aria-label={tt('impRemoveFile')}
               onClick={() => onFile(null)}
               className='rounded-full p-1.5 text-gray-400 transition hover:bg-gray-100 hover:text-gray-600'
             >
@@ -272,6 +282,7 @@ function UnitRow({
   currency: string
   onPriceChange: (price: number | null) => void
 }) {
+  const { tt } = useLocale()
   const meta = CHANGE_META[unit.change]
   return (
     <tr className='border-t border-gray-50'>
@@ -289,7 +300,7 @@ function UnitRow({
         <input
           type='number'
           value={unit.price ?? ''}
-          placeholder='נמכרה'
+          placeholder={tt('impSoldPlaceholder')}
           onChange={(e) =>
             onPriceChange(e.target.value === '' ? null : Number(e.target.value))
           }
@@ -302,7 +313,7 @@ function UnitRow({
         )}
       </td>
       <td className='px-4 py-2.5'>
-        <Badge variant={meta.badge}>{meta.label}</Badge>
+        <Badge variant={meta.badge}>{tt(meta.labelKey)}</Badge>
       </td>
     </tr>
   )
@@ -311,6 +322,7 @@ function UnitRow({
 /* ---------- העמוד ---------- */
 
 export default function SmartImport() {
+  const { tt } = useLocale()
   // bump ל-key של ה-fetchers מאפס את כל הזרימה ל"ייבוא נוסף"
   const [round, setRound] = useState(0)
   const parseFetcher = useFetcher<typeof action>({ key: `parse-${round}` })
@@ -325,7 +337,7 @@ export default function SmartImport() {
     saveFetcher.data && 'saved' in saveFetcher.data
       ? saveFetcher.data.saved
       : null
-  const error =
+  const errorRaw =
     (parseFetcher.data &&
       'error' in parseFetcher.data &&
       parseFetcher.data.error) ||
@@ -333,6 +345,12 @@ export default function SmartImport() {
       'error' in saveFetcher.data &&
       saveFetcher.data.error) ||
     null
+  // קוד שגיאה מוכר → תרגום; אחרת מציגים את ההודעה שהגיעה מהשרת
+  const error = errorRaw
+    ? ERROR_KEYS[errorRaw]
+      ? tt(ERROR_KEYS[errorRaw])
+      : errorRaw
+    : null
 
   useEffect(() => {
     if (
@@ -385,13 +403,11 @@ export default function SmartImport() {
             <SparklesIcon className='h-5 w-5' />
           </span>
           <Heading level={1} size='lg'>
-            ייבוא חכם AI
+            {tt('impTitle')}
           </Heading>
         </div>
         <Text variant='muted' className='mt-2'>
-          מעלים מחירון או רשימת מלאי בכל פורמט — הבוט ממיר לטבלה מסודרת, מזהה
-          פרויקטים חדשים מול קיימים ומסמן מה השתנה. מחיר ריק פירושו שהיחידה
-          נמכרה.
+          {tt('impIntro')}
         </Text>
       </div>
 
@@ -429,11 +445,10 @@ export default function SmartImport() {
                   </motion.span>
                   <div>
                     <p className='text-sm font-semibold text-primary-700'>
-                      ה-AI מנתח את הקובץ...
+                      {tt('impAnalyzing')}
                     </p>
                     <Text as='p' variant='small'>
-                      קורא את המסמך, מזהה פרויקטים ויחידות ומצליב מול הנתונים
-                      הקיימים במערכת. זה יכול לקחת עד דקה.
+                      {tt('impAnalyzingHint')}
                     </Text>
                   </div>
                 </div>
@@ -445,7 +460,7 @@ export default function SmartImport() {
                     className='flex items-center gap-2 disabled:cursor-not-allowed disabled:opacity-50'
                   >
                     <SparklesIcon className='h-4 w-4' />
-                    שליחה לניתוח AI
+                    {tt('impSendToAi')}
                   </Button>
                 </div>
               )}
@@ -466,21 +481,29 @@ export default function SmartImport() {
             {/* Summary */}
             <motion.div variants={fadeUp} className='flex flex-wrap gap-2'>
               {summary.newProjects > 0 && (
-                <Badge>{summary.newProjects} פרויקטים חדשים</Badge>
+                <Badge>
+                  {summary.newProjects} {tt('impNewProjects')}
+                </Badge>
               )}
               {summary.newUnits > 0 && (
-                <Badge>{summary.newUnits} יחידות חדשות</Badge>
+                <Badge>
+                  {summary.newUnits} {tt('impNewUnits')}
+                </Badge>
               )}
               {summary.priceChanges > 0 && (
                 <Badge variant='warning'>
-                  {summary.priceChanges} עדכוני מחיר
+                  {summary.priceChanges} {tt('impPriceChanges')}
                 </Badge>
               )}
               {summary.sold > 0 && (
-                <Badge variant='success'>{summary.sold} נמכרו</Badge>
+                <Badge variant='success'>
+                  {summary.sold} {tt('impSoldCount')}
+                </Badge>
               )}
               {summary.unchanged > 0 && (
-                <Badge variant='neutral'>{summary.unchanged} ללא שינוי</Badge>
+                <Badge variant='neutral'>
+                  {summary.unchanged} {tt('impUnchanged')}
+                </Badge>
               )}
             </motion.div>
 
@@ -495,30 +518,40 @@ export default function SmartImport() {
                           {project.name}
                         </Heading>
                         <Badge variant={project.isNew ? 'primary' : 'neutral'}>
-                          {project.isNew ? 'פרויקט חדש' : 'פרויקט קיים'}
+                          {project.isNew
+                            ? tt('impNewProject')
+                            : tt('impExistingProject')}
                         </Badge>
                       </div>
                       <Text variant='small' className='mt-0.5'>
-                        {project.city}, {project.country} · מטבע:{' '}
-                        {project.currency}
+                        {project.city}, {project.country} · {tt('currencyLabel')}
+                        : {project.currency}
                       </Text>
                     </div>
                     <Text as='span' variant='muted'>
-                      {project.units.length} יחידות
+                      {project.units.length} {tt('impUnitsCount')}
                     </Text>
                   </div>
 
                   <div className='overflow-x-auto'>
                     <table className='w-full min-w-140 text-sm'>
                       <thead>
-                        <tr className='text-right text-xs text-gray-400'>
-                          <th className='px-4 py-2.5 font-medium'>יחידה</th>
-                          <th className='px-4 py-2.5 font-medium'>חדרים</th>
-                          <th className='px-4 py-2.5 font-medium'>מ״ר</th>
+                        <tr className='text-start text-xs text-gray-400'>
                           <th className='px-4 py-2.5 font-medium'>
-                            מחיר (ריק = נמכרה)
+                            {tt('colUnit')}
                           </th>
-                          <th className='px-4 py-2.5 font-medium'>שינוי</th>
+                          <th className='px-4 py-2.5 font-medium'>
+                            {tt('colRooms')}
+                          </th>
+                          <th className='px-4 py-2.5 font-medium'>
+                            {tt('colSqm')}
+                          </th>
+                          <th className='px-4 py-2.5 font-medium'>
+                            {tt('impColPrice')}
+                          </th>
+                          <th className='px-4 py-2.5 font-medium'>
+                            {tt('impColChange')}
+                          </th>
                         </tr>
                       </thead>
                       <tbody>
@@ -550,16 +583,16 @@ export default function SmartImport() {
                 className='flex items-center gap-2'
               >
                 <RotateCcwIcon className='h-4 w-4' />
-                התחלה מחדש
+                {tt('impRestart')}
               </Button>
               <div className='flex gap-2'>
                 <Button
                   variant='outline'
-                  onClick={() => downloadCsv(result)}
+                  onClick={() => downloadCsv(result, tt)}
                   className='flex items-center gap-2'
                 >
                   <DownloadIcon className='h-4 w-4' />
-                  הורדת CSV
+                  {tt('impDownloadCsv')}
                 </Button>
                 <Button
                   onClick={submitSave}
@@ -567,7 +600,7 @@ export default function SmartImport() {
                   className='flex items-center gap-2 disabled:opacity-60'
                 >
                   <CheckCircle2Icon className='h-4 w-4' />
-                  {saving ? 'שומר...' : 'אישור ושמירה במערכת'}
+                  {saving ? tt('impSaving') : tt('impSaveConfirm')}
                 </Button>
               </div>
             </motion.div>
@@ -593,20 +626,20 @@ export default function SmartImport() {
               </motion.span>
               <div>
                 <Heading level={2} size='md'>
-                  הנתונים נשמרו בהצלחה!
+                  {tt('impSavedTitle')}
                 </Heading>
                 <Text variant='muted' className='mt-1'>
-                  {saved.newProjects} פרויקטים חדשים · {saved.newUnits} יחידות
-                  חדשות · {saved.priceChanges} עדכוני מחיר · {saved.sold} סומנו
-                  כנמכרו
+                  {saved.newProjects} {tt('impNewProjects')} · {saved.newUnits}{' '}
+                  {tt('impNewUnits')} · {saved.priceChanges}{' '}
+                  {tt('impPriceChanges')} · {saved.sold} {tt('impMarkedSold')}
                 </Text>
               </div>
               <div className='flex flex-wrap justify-center gap-2'>
                 <Link to='/dashboard'>
-                  <Button>לצפייה בפרויקטים</Button>
+                  <Button>{tt('impViewProjects')}</Button>
                 </Link>
                 <Button variant='outline' onClick={reset}>
-                  ייבוא קובץ נוסף
+                  {tt('impImportAnother')}
                 </Button>
               </div>
             </Card>
