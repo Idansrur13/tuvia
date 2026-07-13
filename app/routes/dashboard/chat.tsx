@@ -12,7 +12,6 @@ import {
   MessagesSquareIcon,
   PaperclipIcon,
   PlusIcon,
-  SearchIcon,
   SendIcon,
   UsersIcon,
   XIcon,
@@ -23,6 +22,7 @@ import {
   Card,
   Heading,
   Modal,
+  SearchInput,
   Text,
   cn,
 } from '../../components/ui'
@@ -525,15 +525,12 @@ export default function ChatPage() {
         >
           <div className='space-y-2 border-b border-gray-100 p-2'>
             <div className='flex items-center gap-2'>
-              <div className='flex flex-1 items-center gap-2 rounded-xl bg-gray-100 px-3 py-2'>
-                <SearchIcon className='h-4 w-4 shrink-0 text-gray-400' />
-                <input
-                  value={query}
-                  onChange={(e) => setQuery(e.target.value)}
-                  placeholder={tt('chatSearch')}
-                  className='w-full bg-transparent text-sm outline-none placeholder:text-gray-400'
-                />
-              </div>
+              <SearchInput
+                className='flex-1'
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder={tt('chatSearch')}
+              />
               <Button
                 size='sm'
                 onClick={() => setNewChatOpen(true)}

@@ -113,3 +113,6 @@ export const USERS: User[] = [
     ...stamp('2026-06-28'),
   },
 ]
+
+/** שליפת משתמש לפי מזהה. */
+export const userById = (id?: string) => USERS.find((u) => u.id === id)

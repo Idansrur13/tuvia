@@ -84,19 +84,44 @@ export function IconButton({
 
 /* ---------- Chip (כפתור סינון/קטגוריה) ---------- */
 
+type ChipSize = "sm" | "md";
+type ChipTone = "primary" | "danger";
+
+const chipSizes: Record<ChipSize, string> = {
+  sm: "gap-1.5 px-3 py-1.5 text-xs",
+  md: "gap-2 px-4 py-2 text-sm",
+};
+
+const chipActiveTones: Record<ChipTone, string> = {
+  primary: "border-primary-500 bg-primary-50 text-primary-700",
+  danger: "border-danger-500 bg-danger-50 text-danger-700",
+};
+
 export interface ChipProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   active?: boolean;
   icon?: ReactNode;
+  size?: ChipSize;
+  /** צבע מצב פעיל — danger לסינונים של דחיפות/איחור */
+  tone?: ChipTone;
 }
 
-export function Chip({ active, icon, className, children, ...props }: ChipProps) {
+export function Chip({
+  active,
+  icon,
+  size = "md",
+  tone = "primary",
+  className,
+  children,
+  ...props
+}: ChipProps) {
   return (
     <button
       type="button"
       className={cn(
-        "flex shrink-0 items-center gap-2 rounded-full border px-4 py-2 text-sm font-medium transition",
+        "flex shrink-0 items-center rounded-full border font-medium transition",
+        chipSizes[size],
         active
-          ? "border-primary-500 bg-primary-50 text-primary-700"
+          ? chipActiveTones[tone]
           : "border-gray-200 bg-white text-gray-600 hover:border-gray-300 hover:text-gray-900",
         className,
       )}
@@ -110,10 +135,19 @@ export function Chip({ active, icon, className, children, ...props }: ChipProps)
 
 /* ---------- ToggleGroup (מתג בחירה אחת מתוך כמה) ---------- */
 
+type ToggleGroupSize = "sm" | "md";
+
+const toggleGroupSizes: Record<ToggleGroupSize, string> = {
+  sm: "gap-1.5 px-3 py-1.5 text-xs",
+  md: "gap-2 px-6 py-2 text-sm",
+};
+
 export interface ToggleGroupProps<T extends string> {
-  options: ReadonlyArray<readonly [T, string]>;
+  /** [ערך, תווית] — התווית יכולה לכלול אייקון */
+  options: ReadonlyArray<readonly [T, ReactNode]>;
   value: T;
   onChange: (value: T) => void;
+  size?: ToggleGroupSize;
   className?: string;
 }
 
@@ -121,6 +155,7 @@ export function ToggleGroup<T extends string>({
   options,
   value,
   onChange,
+  size = "md",
   className,
 }: ToggleGroupProps<T>) {
   return (
@@ -136,7 +171,8 @@ export function ToggleGroup<T extends string>({
           type="button"
           onClick={() => onChange(optionValue)}
           className={cn(
-            "rounded-full px-6 py-2 text-sm font-semibold transition",
+            "flex items-center rounded-full font-semibold transition",
+            toggleGroupSizes[size],
             value === optionValue
               ? "bg-primary-500 text-white shadow"
               : "text-gray-600 hover:text-gray-900",

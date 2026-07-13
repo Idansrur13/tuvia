@@ -33,6 +33,11 @@
   --color-warning-50: #fffbeb;
   --color-warning-500: #f59e0b;
   --color-warning-700: #b45309;
+
+  /* צבע דחיפות/שגיאה — פולו-אפ באיחור, הודעות שגיאה */
+  --color-danger-50: #fef2f2;
+  --color-danger-500: #ef4444;
+  --color-danger-700: #b91c1c;
 }
 
 html,

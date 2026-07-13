@@ -27,7 +27,7 @@ export function Heading({
   const Tag = `h${level}` as const
   return (
     <Tag
-      className={cn(headingSizes[size], 'text-gray-900', className)}
+      className={cn(headingSizes[size], 'text-gray-700 ', className)}
       {...props}
     />
   )

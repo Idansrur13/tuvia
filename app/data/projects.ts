@@ -1,7 +1,7 @@
 /*
  * פרויקטים, יחידות ושריונים — מלאי הקבלן המסונכרן (פרקים 5, 8).
  */
-import type { Project, Reservation, Unit } from '~/types'
+import type { Project, Reservation } from '~/types'
 import { COUNTRIES, L, img, money, stamp } from './util'
 
 export const PROJECTS: Project[] = [
@@ -113,7 +113,15 @@ export const PROJECTS: Project[] = [
         floor: '5',
         price: money(890_000, 'EUR'),
         status: 'available',
-        ...stamp('2025-08-10'),
+        priceHistory: [
+          {
+            at: '2026-07-08T09:00:00Z',
+            from: money(920_000, 'EUR'),
+            to: money(890_000, 'EUR'),
+            changedBy: 'import',
+          },
+        ],
+        ...stamp('2025-08-10', '2026-07-08'),
       },
     ],
   },
@@ -152,7 +160,15 @@ export const PROJECTS: Project[] = [
         floor: '20',
         price: money(2_400_000, 'USD'),
         status: 'available',
-        ...stamp('2026-01-15'),
+        priceHistory: [
+          {
+            at: '2026-07-06T08:00:00Z',
+            from: money(2_550_000, 'USD'),
+            to: money(2_400_000, 'USD'),
+            changedBy: 'u-mike',
+          },
+        ],
+        ...stamp('2026-01-15', '2026-07-06'),
       },
     ],
   },

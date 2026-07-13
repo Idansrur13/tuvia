@@ -18,11 +18,22 @@ export function Card({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
 
 /* ---------- StatCard (כרטיס מדד לדשבורד) ---------- */
 
+type StatCardTone = 'primary' | 'success' | 'warning' | 'danger'
+
+const statCardTones: Record<StatCardTone, string> = {
+  primary: 'bg-primary-50 text-primary-600',
+  success: 'bg-success-50 text-success-700',
+  warning: 'bg-warning-50 text-warning-700',
+  danger: 'bg-danger-50 text-danger-700',
+}
+
 export interface StatCardProps {
   label: string
   value: ReactNode
   hint?: string
   icon?: ReactNode
+  /** צבע ריבוע האייקון — למשל danger למדדי איחור */
+  tone?: StatCardTone
   className?: string
 }
 
@@ -31,6 +42,7 @@ export function StatCard({
   value,
   hint,
   icon,
+  tone = 'primary',
   className,
 }: StatCardProps) {
   return (
@@ -47,7 +59,12 @@ export function StatCard({
         )}
       </div>
       {icon && (
-        <span className='flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary-50 text-primary-600'>
+        <span
+          className={cn(
+            'flex h-10 w-10 shrink-0 items-center justify-center rounded-xl',
+            statCardTones[tone],
+          )}
+        >
           {icon}
         </span>
       )}

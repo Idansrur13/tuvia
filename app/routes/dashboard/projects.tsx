@@ -5,10 +5,12 @@ import {
   Button,
   Card,
   Chip,
+  EmptyState,
   Heading,
+  PageHeader,
+  PillSelect,
   StatCard,
   Text,
-  cn,
 } from '../../components/ui'
 
 import {
@@ -188,23 +190,18 @@ export default function ContractorProjects({
 
   return (
     <div className='space-y-6'>
-      {/* Page header */}
-      <div className='flex flex-wrap items-center justify-between gap-3'>
-        <div>
-          <Heading level={1} size='lg'>
-            {tt('projectsHeading')}
-          </Heading>
-          <Text variant='muted' className='mt-1'>
-            {tt('projectsSubtitle')}
-          </Text>
-        </div>
-        <Link to={'import'}>
-          <Button className='flex items-center gap-2'>
-            <PlusIcon className='h-4 w-4' />
-            {tt('newProject')}
-          </Button>
-        </Link>
-      </div>
+      <PageHeader
+        title={tt('projectsHeading')}
+        subtitle={tt('projectsSubtitle')}
+        actions={
+          <Link to={'import'}>
+            <Button className='flex items-center gap-2'>
+              <PlusIcon className='h-4 w-4' />
+              {tt('newProject')}
+            </Button>
+          </Link>
+        }
+      />
 
       {/* KPIs */}
       <div className='grid grid-cols-2 gap-4 xl:grid-cols-4'>
@@ -294,18 +291,18 @@ export default function ContractorProjects({
           </Heading>
           <div className='flex gap-1.5 overflow-x-auto scrollbar-none'>
             <Chip
+              size='sm'
               active={statusFilter === 'all'}
               onClick={() => setStatusFilter('all')}
-              className='px-3 py-1.5 text-xs'
             >
               {tt('all')} ({project.units.length})
             </Chip>
             {UNIT_STATUSES.map((s) => (
               <Chip
                 key={s}
+                size='sm'
                 active={statusFilter === s}
                 onClick={() => setStatusFilter(s)}
-                className='px-3 py-1.5 text-xs'
               >
                 {t(UNIT_STATUS_META[s].label)} (
                 {project.units.filter((u) => u.status === s).length})
@@ -347,29 +344,30 @@ export default function ContractorProjects({
                     {unit.buyerId ?? '—'}
                   </td>
                   <td className='px-4 py-3'>
-                    <select
+                    <PillSelect
                       value={unit.status}
+                      tone={statusSelectClass[unit.status]}
+                      className='font-semibold'
                       onChange={(e) =>
                         updateUnitStatus(unit.id, e.target.value as UnitStatus)
                       }
-                      className={cn(
-                        'cursor-pointer rounded-full border-0 px-2.5 py-1 text-xs font-semibold outline-none',
-                        statusSelectClass[unit.status],
-                      )}
                     >
                       {UNIT_STATUSES.map((s) => (
                         <option key={s} value={s}>
                           {t(UNIT_STATUS_META[s].label)}
                         </option>
                       ))}
-                    </select>
+                    </PillSelect>
                   </td>
                 </tr>
               ))}
               {filteredUnits.length === 0 && (
                 <tr>
-                  <td colSpan={6} className='px-4 py-10 text-center'>
-                    <Text variant='muted'>{tt('noUnitsInStatus')}</Text>
+                  <td colSpan={6} className='p-4'>
+                    <EmptyState
+                      title={tt('noUnitsInStatus')}
+                      icon={<BuildingIcon className='h-5 w-5' />}
+                    />
                   </td>
                 </tr>
               )}

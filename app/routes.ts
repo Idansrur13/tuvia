@@ -15,5 +15,11 @@ export default [
     route("leads", "routes/dashboard/leads.tsx"),
     route("import", "routes/dashboard/import.tsx"),
     route("chat", "routes/dashboard/chat.tsx"),
+
+    /* דשבורד המוכר/מתווך (פרק 6) */
+    route("seller", "routes/dashboard/seller/overview.tsx"),
+    route("seller/portfolio", "routes/dashboard/seller/portfolio.tsx"),
+    route("seller/viewings", "routes/dashboard/seller/viewings.tsx"),
+    route("seller/deals", "routes/dashboard/seller/deals.tsx"),
   ]),
 ] satisfies RouteConfig;

@@ -15,3 +15,4 @@ export * from './clients' // INVITES, DEALS, dealById, dealForClient
 export * from './notifications' // NOTIFICATIONS, notificationsFor
 export * from './chat' // CONVERSATIONS, MESSAGES, messagesFor, conversationsFor
 export * from './articles' // ARTICLES, articleBySlug, publishedArticles
+export * from './viewings' // VIEWINGS, viewingsFor

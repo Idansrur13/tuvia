@@ -12,6 +12,7 @@
     "@anthropic-ai/sdk": "^0.110.0",
     "@react-router/node": "8.0.0",
     "@react-router/serve": "8.0.0",
+    "@vercel/speed-insights": "^2.0.0",
     "env": "^0.0.2",
     "isbot": "^5.1.36",
     "lucide-react": "^1.23.0",

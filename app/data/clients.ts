@@ -98,6 +98,39 @@ export const DEALS: Deal[] = [
     ],
     ...stamp('2026-06-15', '2026-07-08'),
   },
+  {
+    id: 'deal-2',
+    unitId: 'C-08',
+    projectId: 'larnaca-bay',
+    clientId: 'u-emma',
+    contractorId: 'org-bluebay',
+    sellerId: 'u-michal',
+    stage: 'contract',
+    price: money(445_000, 'EUR'),
+    commission: money(8_900, 'EUR'),
+    documents: [
+      {
+        id: 'doc-3',
+        dealId: 'deal-2',
+        kind: 'contract',
+        status: 'pendingSignature',
+        file: img('photo-1554224155-6726b3ff858f'),
+        requiresSignature: true,
+        ...stamp('2026-07-05'),
+      },
+    ],
+    payments: [
+      {
+        id: 'pay-4',
+        dealId: 'deal-2',
+        label: 'Deposit',
+        amount: money(44_500, 'EUR'),
+        dueDate: '2026-07-15T00:00:00Z',
+        status: 'due',
+      },
+    ],
+    ...stamp('2026-07-02', '2026-07-08'),
+  },
 ]
 
 export const dealById = (id: string) => DEALS.find((d) => d.id === id)

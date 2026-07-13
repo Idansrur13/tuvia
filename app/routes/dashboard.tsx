@@ -1,62 +1,124 @@
-import { NavLink, Outlet, useLocation } from 'react-router'
+import { useEffect, useState } from 'react'
+import { NavLink, Outlet, useLocation, useNavigate } from 'react-router'
 import { Badge, Text, cn, fadeUp } from '../components/ui'
 import { motion } from 'motion/react'
 
 import { Logo } from '../components/logo'
 import { useLocale } from '~/i18n/locale'
+import type { DictKey } from '~/i18n/dictionary'
 import {
+  BriefcaseIcon,
   BuildingIcon,
-  ChartAreaIcon,
+  CalendarDaysIcon,
   FunnelIcon,
+  HandshakeIcon,
+  LayoutDashboardIcon,
   MessageSquareIcon,
-  SlidersIcon,
   SparklesIcon,
-  UsersIcon,
 } from 'lucide-react'
 
 /*
- * פריסת הדשבורד משותפת לכל התפקידים (קבלן / לקוח / אדמין).
- * תפריט הצד נבנה לפי התפקיד; כרגע ממומש תפריט הקבלן.
+ * פריסת הדשבורד — תפריט הצד נבנה לפי התפקיד (פרק 2 באפיון).
+ * ממומשים: קבלן + מוכר/מתווך. מתג התפקיד הוא דמו עד שיחובר auth.
  */
 
-const CONTRACTOR_NAV = [
-  {
-    to: '/dashboard',
-    labelKey: 'navMyProjects',
-    icon: BuildingIcon,
-    end: true,
-  },
-  {
-    to: '/dashboard/leads',
-    labelKey: 'navLeads',
-    icon: FunnelIcon,
-    end: false,
-  },
-  {
-    to: '/dashboard/import',
-    labelKey: 'navImport',
-    icon: SparklesIcon,
-    end: false,
-  },
-  {
-    to: '/dashboard/chat',
-    labelKey: 'navChat',
-    icon: MessageSquareIcon,
-    end: false,
-  },
-] as const
+type DashRole = 'contractor' | 'seller'
 
-const COMING_SOON = [
-  { labelKey: 'navMyClients', icon: UsersIcon },
-  { labelKey: 'navReports', icon: ChartAreaIcon },
-  { labelKey: 'navSettings', icon: SlidersIcon },
-] as const
+interface NavItem {
+  to: string
+  labelKey: DictKey
+  icon: typeof BuildingIcon
+  end: boolean
+}
 
-function NavItems({ onNavigate }: { onNavigate?: () => void }) {
+const NAVS: Record<DashRole, NavItem[]> = {
+  contractor: [
+    { to: '/dashboard', labelKey: 'navMyProjects', icon: BuildingIcon, end: true },
+    { to: '/dashboard/leads', labelKey: 'navLeads', icon: FunnelIcon, end: false },
+    { to: '/dashboard/import', labelKey: 'navImport', icon: SparklesIcon, end: false },
+    { to: '/dashboard/chat', labelKey: 'navChat', icon: MessageSquareIcon, end: false },
+  ],
+  seller: [
+    {
+      to: '/dashboard/seller',
+      labelKey: 'navSellerOverview',
+      icon: LayoutDashboardIcon,
+      end: true,
+    },
+    {
+      to: '/dashboard/seller/portfolio',
+      labelKey: 'navPortfolio',
+      icon: BriefcaseIcon,
+      end: false,
+    },
+    {
+      to: '/dashboard/seller/viewings',
+      labelKey: 'navViewings',
+      icon: CalendarDaysIcon,
+      end: false,
+    },
+    {
+      to: '/dashboard/seller/deals',
+      labelKey: 'navDeals',
+      icon: HandshakeIcon,
+      end: false,
+    },
+    { to: '/dashboard/leads', labelKey: 'navLeads', icon: FunnelIcon, end: false },
+    { to: '/dashboard/chat', labelKey: 'navChat', icon: MessageSquareIcon, end: false },
+  ],
+}
+
+const ROLE_LABEL: Record<DashRole, DictKey> = {
+  contractor: 'roleContractor',
+  seller: 'roleSeller',
+}
+
+/** פרטי משתמש הדמו לכל תפקיד — עד שיחובר auth. */
+const ROLE_USER: Record<DashRole, { initials: string; name: string; org: string }> = {
+  contractor: { initials: 'יכ', name: 'יוסי כהן', org: 'י.כ. בנייה ופיתוח בע״מ' },
+  seller: { initials: 'מל', name: 'מיכל לוי', org: 'רי/מקס תל אביב' },
+}
+
+function RoleSwitch({
+  role,
+  onChange,
+}: {
+  role: DashRole
+  onChange: (r: DashRole) => void
+}) {
   const { tt } = useLocale()
   return (
-    <nav className='flex flex-col  gap-1'>
-      {CONTRACTOR_NAV.map(({ to, labelKey, icon: Icon, end }) => (
+    <div className='flex rounded-xl bg-gray-100 p-0.5'>
+      {(['contractor', 'seller'] as const).map((r) => (
+        <button
+          key={r}
+          type='button'
+          onClick={() => onChange(r)}
+          className={cn(
+            'flex-1 rounded-lg px-2 py-1.5 text-xs font-semibold transition',
+            role === r
+              ? 'bg-white text-primary-700 shadow-sm'
+              : 'text-gray-500 hover:text-gray-800',
+          )}
+        >
+          {tt(ROLE_LABEL[r])}
+        </button>
+      ))}
+    </div>
+  )
+}
+
+function NavItems({
+  role,
+  onNavigate,
+}: {
+  role: DashRole
+  onNavigate?: () => void
+}) {
+  const { tt } = useLocale()
+  return (
+    <nav className='flex flex-col gap-1'>
+      {NAVS[role].map(({ to, labelKey, icon: Icon, end }) => (
         <NavLink
           key={to}
           to={to}
@@ -79,27 +141,46 @@ function NavItems({ onNavigate }: { onNavigate?: () => void }) {
   )
 }
 
-function UserCard() {
+function UserCard({ role }: { role: DashRole }) {
   const { tt } = useLocale()
+  const user = ROLE_USER[role]
   return (
     <div className='flex items-center gap-3 rounded-2xl border border-gray-100 bg-gray-50 p-3'>
       <span className='flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary-500 font-bold text-white'>
-        יכ
+        {user.initials}
       </span>
       <div className='min-w-0'>
-        <p className='truncate text-sm font-semibold text-gray-900'>יוסי כהן</p>
+        <p className='truncate text-sm font-semibold text-gray-900'>
+          {user.name}
+        </p>
         <Text as='p' variant='small' className='truncate'>
-          י.כ. בנייה ופיתוח בע״מ
+          {user.org}
         </Text>
       </div>
-      <Badge className='mr-auto shrink-0'>{tt('roleContractor')}</Badge>
+      <Badge className='mr-auto shrink-0'>{tt(ROLE_LABEL[role])}</Badge>
     </div>
   )
 }
 
 export default function DashboardLayout() {
   const location = useLocation()
+  const navigate = useNavigate()
   const { tt } = useLocale()
+  const [role, setRole] = useState<DashRole>('contractor')
+
+  /* שחזור התפקיד שנבחר + התאמה אוטומטית לפי הנתיב הנוכחי */
+  useEffect(() => {
+    const saved = localStorage.getItem('dashRole')
+    if (location.pathname.startsWith('/dashboard/seller')) setRole('seller')
+    else if (saved === 'seller' || saved === 'contractor') setRole(saved)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  const switchRole = (r: DashRole) => {
+    setRole(r)
+    localStorage.setItem('dashRole', r)
+    navigate(r === 'seller' ? '/dashboard/seller' : '/dashboard')
+  }
 
   return (
     <div className='min-h-screen bg-gray-50'>
@@ -109,21 +190,30 @@ export default function DashboardLayout() {
           <Logo />
         </div>
 
-        <div className='mt-6 flex-1 '>
-          <NavItems />
+        <div className='mt-4'>
+          <Text as='p' variant='small' className='mb-1.5 px-1'>
+            {tt('roleView')}
+          </Text>
+          <RoleSwitch role={role} onChange={switchRole} />
         </div>
 
-        <UserCard />
+        <div className='mt-5 flex-1'>
+          <NavItems role={role} />
+        </div>
+
+        <UserCard role={role} />
       </aside>
 
       {/* Mobile top bar */}
       <header className='sticky top-0 z-40 border-b border-gray-100 bg-white/90 backdrop-blur-md lg:hidden'>
-        <div className='flex items-center justify-between px-4 py-3'>
+        <div className='flex items-center justify-between gap-3 px-4 py-3'>
           <Logo />
-          <Badge>{tt('roleContractor')}</Badge>
+          <div className='flex items-center gap-2'>
+            <RoleSwitch role={role} onChange={switchRole} />
+          </div>
         </div>
         <div className='flex gap-1 overflow-x-auto px-4 pb-3 scrollbar-none'>
-          {CONTRACTOR_NAV.map(({ to, labelKey, end }) => (
+          {NAVS[role].map(({ to, labelKey, end }) => (
             <NavLink
               key={to}
               to={to}
@@ -144,7 +234,7 @@ export default function DashboardLayout() {
       </header>
 
       <div className='lg:pr-64'>
-        {/* key לפי הנתיב התוכן נכנס מחדש באנימציה בכל מעבר עמוד */}
+        {/* key לפי הנתיב — התוכן נכנס מחדש באנימציה בכל מעבר עמוד */}
         <motion.main
           key={location.pathname}
           variants={fadeUp}

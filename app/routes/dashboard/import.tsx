@@ -4,9 +4,11 @@ import { AnimatePresence, motion } from 'motion/react'
 import type { Route } from './+types/import'
 import {
   Badge,
+  Banner,
   Button,
   Card,
   Heading,
+  PageHeader,
   Text,
   cn,
   fadeUp,
@@ -396,30 +398,17 @@ export default function SmartImport() {
 
   return (
     <div className='space-y-6'>
-      {/* Page header */}
-      <div>
-        <div className='flex items-center gap-2'>
-          <span className='flex h-9 w-9 items-center justify-center rounded-xl bg-primary-500 text-white'>
-            <SparklesIcon className='h-5 w-5' />
-          </span>
-          <Heading level={1} size='lg'>
-            {tt('impTitle')}
-          </Heading>
-        </div>
-        <Text variant='muted' className='mt-2'>
-          {tt('impIntro')}
-        </Text>
-      </div>
+      <PageHeader
+        title={tt('impTitle')}
+        subtitle={tt('impIntro')}
+        icon={<SparklesIcon className='h-5 w-5' />}
+      />
 
       <Card>
         <Stepper step={step} />
       </Card>
 
-      {error && (
-        <div className='rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700'>
-          {error}
-        </div>
-      )}
+      {error && <Banner variant='danger'>{error}</Banner>}
 
       <AnimatePresence mode='wait'>
         {/* ---------- שלב 1: העלאה ---------- */}

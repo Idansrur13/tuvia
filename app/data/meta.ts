@@ -10,10 +10,11 @@ import type {
   LeadStage,
   Localized,
   UnitStatus,
+  ViewingStatus,
 } from '~/types'
 import { L } from './util'
 
-type BadgeTone = 'primary' | 'neutral' | 'warning' | 'success' | 'danger'
+type BadgeTone = 'primary' | 'neutral' | 'warning' | 'success'
 
 /** תווית + גוון badge לכל סטטוס יחידה. */
 export const UNIT_STATUS_META: Record<
@@ -108,4 +109,16 @@ export const LEAD_ACTIVITY_META: Record<
   meeting: { label: L('פגישה', 'Meeting') },
   note: { label: L('הערה', 'Note') },
   stageChange: { label: L('שינוי שלב', 'Stage change') },
+}
+
+/** סטטוסי סיור/ביקור (דשבורד המוכר). */
+export const VIEWING_STATUS_META: Record<
+  ViewingStatus,
+  { label: Localized; badge: 'primary' | 'success' | 'warning' | 'neutral' }
+> = {
+  scheduled: { label: L('מתואם', 'Scheduled'), badge: 'primary' },
+  confirmed: { label: L('אושר', 'Confirmed'), badge: 'success' },
+  completed: { label: L('התקיים', 'Completed'), badge: 'neutral' },
+  cancelled: { label: L('בוטל', 'Cancelled'), badge: 'warning' },
+  noShow: { label: L('לא הגיע/ה', 'No-show'), badge: 'warning' },
 }
