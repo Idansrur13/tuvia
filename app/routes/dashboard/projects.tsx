@@ -9,6 +9,7 @@ import {
   Heading,
   PageHeader,
   PillSelect,
+  Select,
   StatCard,
   Text,
 } from '../../components/ui'
@@ -344,10 +345,8 @@ export default function ContractorProjects({
                     {unit.buyerId ?? '—'}
                   </td>
                   <td className='px-4 py-3'>
-                    <PillSelect
+                    <Select
                       value={unit.status}
-                      tone={statusSelectClass[unit.status]}
-                      className='font-semibold'
                       onChange={(e) =>
                         updateUnitStatus(unit.id, e.target.value as UnitStatus)
                       }
@@ -357,7 +356,7 @@ export default function ContractorProjects({
                           {t(UNIT_STATUS_META[s].label)}
                         </option>
                       ))}
-                    </PillSelect>
+                    </Select>
                   </td>
                 </tr>
               ))}

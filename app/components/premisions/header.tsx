@@ -73,7 +73,11 @@ export function Header({
             <SparklesIcon className='h-4 w-4' />
             <span className='hidden sm:block'>{tt('navAssistant')}</span>
           </Link>
-          <TextLink href='/dashboard' variant='nav' className='hidden lg:block'>
+          <TextLink
+            href='/dashboard'
+            variant='nav'
+            className='hidden lg:block'
+          >
             {tt('contractorsArea')}
           </TextLink>
           <LogIn />

@@ -1,7 +1,7 @@
 /*
  * ארגונים ומשתמשי דמו — כיסוי לכל ארבעת התפקידים (פרק 2).
  */
-import type { Organization, User } from '~/types'
+import type { Organization, PartnerApplication, User } from '~/types'
 import { stamp } from './util'
 
 export const ORGANIZATIONS: Organization[] = [
@@ -9,6 +9,8 @@ export const ORGANIZATIONS: Organization[] = [
     id: 'org-tchelet',
     type: 'contractor',
     name: 'י.כ. בנייה ופיתוח בע״מ',
+    /* אנונימיות קבלנים (פרק 17): באזור הציבורי מוצג רק הכינוי. */
+    alias: 'C-101',
     verified: true,
     regions: ['תל אביב', 'מרכז'],
     ...stamp('2025-01-10'),
@@ -17,6 +19,7 @@ export const ORGANIZATIONS: Organization[] = [
     id: 'org-bluebay',
     type: 'contractor',
     name: 'Blue Bay Development',
+    alias: 'C-102',
     verified: true,
     regions: ['Larnaca', 'Miami'],
     ...stamp('2025-02-01'),
@@ -116,3 +119,51 @@ export const USERS: User[] = [
 
 /** שליפת משתמש לפי מזהה. */
 export const userById = (id?: string) => USERS.find((u) => u.id === id)
+
+/** שליפת ארגון לפי מזהה. */
+export const organizationById = (id?: string) =>
+  ORGANIZATIONS.find((o) => o.id === id)
+
+/*
+ * בקשות הצטרפות קבלן/מתווך (פרק 17) - מאושרות רק על ידי מנהל.
+ * מסך הטיפול ייבנה עם דשבורד האדמין.
+ */
+export const PARTNER_APPLICATIONS: PartnerApplication[] = [
+  {
+    id: 'app-1',
+    type: 'contractor',
+    companyName: 'Aegean Homes Ltd',
+    contactName: 'Nikos Papadopoulos',
+    email: 'nikos@aegeanhomes.gr',
+    phone: '+30 210 5551234',
+    country: 'Greece',
+    status: 'pending',
+    ...stamp('2026-07-08'),
+  },
+  {
+    id: 'app-2',
+    type: 'agency',
+    companyName: 'תיווך פרימיום חיפה',
+    contactName: 'שרון ברק',
+    email: 'sharon@premium-haifa.co.il',
+    phone: '04-8123456',
+    country: 'Israel',
+    status: 'approved',
+    reviewedById: 'u-admin',
+    reviewedAt: '2026-07-01T10:00:00Z',
+    ...stamp('2026-06-25', '2026-07-01'),
+  },
+  {
+    id: 'app-3',
+    type: 'contractor',
+    companyName: 'Sunrise Construct SRL',
+    contactName: 'Andrei Ionescu',
+    email: 'andrei@sunrise-construct.ro',
+    country: 'Romania',
+    status: 'rejected',
+    reviewedById: 'u-admin',
+    reviewedAt: '2026-06-20T09:00:00Z',
+    note: 'חסרים מסמכי רישום חברה',
+    ...stamp('2026-06-15', '2026-06-20'),
+  },
+]

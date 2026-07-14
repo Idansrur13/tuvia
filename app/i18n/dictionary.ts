@@ -270,12 +270,12 @@ const he = {
   unassigned: 'ללא שיוך',
 
   // ── העוזר האישי (פרק 3.3) ──
-  navAssistant: 'עוזר AI',
-  aiTitle: 'העוזר האישי שלכם למציאת דירה',
+  navAssistant: 'נדלנומטר (AI)',
+  aiTitle: 'נדלנומטר - העוזר האישי שלכם למציאת דירה',
   aiSubtitle:
     'ספרו לי מה אתם מחפשים אזור, תקציב, חדרים ואאתר נכסים מתאימים מהמאגר, אמליץ ואייעץ גם על הסביבה',
   aiGreeting:
-    'היי! 👋 אני העוזר החכם של הפלטפורמה. ספרו לי מה אתם מחפשים אזור, תקציב, מספר חדרים ואמצא לכם את הנכסים המתאימים ביותר, כולל טיפים על השכונה והסביבה.',
+    'היי! 👋 אני נדלנומטר, הבוט החכם של הפלטפורמה. ספרו לי מה אתם מחפשים אזור, תקציב, מספר חדרים ואמצא לכם את הנכסים המתאימים ביותר, כולל טיפים על השכונה והסביבה.',
   aiInputPh: 'למשל: דירת 4 חדרים בתל אביב עד 5 מיליון ₪, קרוב לים...',
   aiThinking: 'מחפש נכסים מתאימים...',
   aiMatch: 'התאמה',
@@ -327,6 +327,17 @@ const he = {
   kpiAvailableUnits: 'יחידות פנויות',
   kpiMyReservations: 'שריונים שלי',
   reserveSentMsg: 'בקשת השריון נשלחה לקבלן — תקבלו עדכון כשתאושר.',
+  // מודל פרסום מודעה
+  addAdCta: 'פרסום מודעה',
+  adModalTitle: 'פרסום מודעה לנכס',
+  adModalHint: 'המודעה תפורסם בעמוד הנכסים הציבורי בשם המשרד שלך.',
+  adTitleLabel: 'כותרת המודעה',
+  adTitlePlaceholder: 'למשל: דירת 4 חדרים עם מרפסת נוף',
+  adPriceLabel: 'מחיר מבוקש',
+  adDescLabel: 'תיאור',
+  adDescPlaceholder: 'כמה משפטים שימכרו את הנכס...',
+  adPublish: 'פרסום',
+  adPublishedMsg: 'המודעה פורסמה בהצלחה!',
 
   vwTitle: 'סיורים וביקורים',
   vwSub: 'מי מגיע לביקור, לאיזה נכס ומתי — מתואם מול הלידים והמלאי',
@@ -358,6 +369,74 @@ const he = {
   dlCommissionReceived: 'עמלות שהתקבלו',
   dlNoDeals: 'אין עסקאות עדיין',
   paidOf: 'שולמו',
+
+  // ── גישה זמנית 3 חודשים (פרק 4.1) ──
+  accessUntilLabel: 'גישה עד',
+  accessBlockedBadge: 'הגישה נחסמה',
+  renewAccess: 'חידוש גישה',
+  accessRenewedMsg: 'הגישה חודשה ל-3 חודשים נוספים.',
+
+  // ── חלון עמלה (פרק 16.3) ──
+  colCommWindow: 'חלון עמלה',
+  commInWindow: 'בחלון העמלה',
+  commOutWindow: 'מחוץ לחלון',
+
+  // ── אישורי תשלום דו-שלביים (פרק 16.2) ──
+  payApprovalsTitle: 'אישורי תשלום',
+  payApprovalsSub: 'בקשת תשלום ← אישור הקבלן ← אישור מנהל הפלטפורמה',
+  payRefLabel: 'אסמכתא',
+
+  // ── תיק הנכסים / מלאי קבלנים (פרק 6) ──
+  navInventory: 'מלאי קבלנים',
+  invSub: 'כל מלאי הקבלנים בזמן אמת - שריון שאושר נכנס לתיק הנכסים שלך',
+  portMyUnits: 'יחידות קבלן בתיק שלי',
+  kpiPortfolioAssets: 'נכסים בתיק',
+  kpiActiveClients: 'לקוחות פעילים',
+  linkedClientCol: 'לקוח מקושר',
+  nextViewingCol: 'סיור קרוב',
+  activeDealCol: 'עסקה',
+  noPortfolioUnits: 'אין עדיין יחידות בתיק',
+  noPortfolioHint: 'שריינו יחידות מעמוד מלאי הקבלנים כדי להוסיף אותן לתיק',
+  goToInventory: 'למלאי הקבלנים',
+
+  // ── השוואת דירות (פרק 3.1) ──
+  compareAdd: 'הוספה להשוואה',
+  compareRemove: 'הסרה מהשוואה',
+  compareTitle: 'השוואת דירות',
+  compareCta: 'השוואה',
+  compareClear: 'ניקוי',
+  compareSelected: 'נכסים נבחרו',
+  compareFloor: 'קומה',
+  compareCity: 'עיר',
+  compareDealType: 'סוג עסקה',
+  compareFeatures: 'מאפיינים',
+  comparePerSqm: 'מחיר למ״ר',
+
+  // ── עמוד נכס בדשבורד (מתווך + קבלן) ──
+  propNotFound: 'הנכס לא נמצא',
+  propNotFoundHint: 'ייתכן שהקישור שגוי או שהנכס הוסר מהמערכת',
+  propDetails: 'פרטי הנכס',
+  propParking: 'חניות',
+  propYearBuilt: 'שנת בנייה',
+  propEntry: 'אכלוס',
+  propEntryFlexible: 'גמיש',
+  propAskedPrice: 'מחיר מבוקש',
+  propViewPublic: 'לעמוד הציבורי',
+  propShare: 'שיתוף נכס',
+  propLinkCopied: 'הקישור הועתק ללוח!',
+  propInterestedLeads: 'לידים מתעניינים',
+  propNoLeads: 'עדיין אין לידים שמתעניינים בנכס הזה',
+  propProjectInventory: 'מלאי הפרויקט',
+  propSalesProgress: 'התקדמות מכירות בפרויקט',
+  propPriceHistory: 'היסטוריית מחירים',
+  propNoPriceChanges: 'לא בוצעו שינויי מחיר ביחידה',
+  propViewings: 'סיורים בנכס',
+  propNoViewings: 'אין סיורים מתוכננים לנכס הזה',
+  propScheduleViewing: 'תיאום סיור',
+  propEstCommission: 'עמלה משוערת (2%)',
+  propCommissionHint: 'מחושבת לפי המחיר המבוקש',
+  propGoToProject: 'לניהול הפרויקט',
+  propAgentInCharge: 'אחראי על הנכס',
 }
 
 const en: Record<keyof typeof he, string> = {
@@ -452,7 +531,7 @@ const en: Record<keyof typeof he, string> = {
 
   perMonth: 'per month',
   perSqm: 'per m²',
-  roleContractor: 'Developer',
+  roleContractor: 'agent',
   roleAgent: 'Accompanying agent',
   callAgent: 'Call agent',
   detailsSent: 'Details sent!',
@@ -618,12 +697,12 @@ const en: Record<keyof typeof he, string> = {
   kanbanMore: 'more switch to table view',
   unassigned: 'Unassigned',
 
-  navAssistant: 'AI Assistant',
-  aiTitle: 'Your personal home-finding assistant',
+  navAssistant: 'Nadlanometer (AI)',
+  aiTitle: 'Nadlanometer - your personal home-finding assistant',
   aiSubtitle:
     'Tell me what you are looking for area, budget, rooms and I will find matching properties, recommend and advise on the neighborhood',
   aiGreeting:
-    "Hi! 👋 I'm the platform's smart assistant. Tell me what you're looking for area, budget, number of rooms and I'll find the best matching properties, including tips about the neighborhood.",
+    "Hi! 👋 I'm Nadlanometer, the platform's smart assistant. Tell me what you're looking for area, budget, number of rooms and I'll find the best matching properties, including tips about the neighborhood.",
   aiInputPh: 'e.g. a 4-room apartment in Tel Aviv up to ₪5M, near the sea...',
   aiThinking: 'Searching for matching properties...',
   aiMatch: 'match',
@@ -675,6 +754,18 @@ const en: Record<keyof typeof he, string> = {
   kpiMyReservations: 'My reservations',
   reserveSentMsg:
     "The reservation request was sent to the contractor — you'll be notified once approved.",
+  // Publish-ad modal
+  addAdCta: 'Publish ad',
+  adModalTitle: 'Publish a listing ad',
+  adModalHint:
+    'The ad will appear on the public listings page under your agency.',
+  adTitleLabel: 'Ad title',
+  adTitlePlaceholder: 'e.g. 4-room apartment with a view balcony',
+  adPriceLabel: 'Asking price',
+  adDescLabel: 'Description',
+  adDescPlaceholder: 'A few sentences that sell the property...',
+  adPublish: 'Publish',
+  adPublishedMsg: 'The ad was published successfully!',
 
   vwTitle: 'Viewings',
   vwSub:
@@ -708,6 +799,72 @@ const en: Record<keyof typeof he, string> = {
   dlCommissionReceived: 'Commissions received',
   dlNoDeals: 'No deals yet',
   paidOf: 'paid',
+
+  accessUntilLabel: 'Access until',
+  accessBlockedBadge: 'Access blocked',
+  renewAccess: 'Renew access',
+  accessRenewedMsg: 'Access renewed for another 3 months.',
+
+  colCommWindow: 'Commission window',
+  commInWindow: 'Within window',
+  commOutWindow: 'Outside window',
+
+  payApprovalsTitle: 'Payment approvals',
+  payApprovalsSub:
+    'Payment request → contractor approval → platform admin confirmation',
+  payRefLabel: 'Reference',
+
+  navInventory: 'Contractor inventory',
+  invSub:
+    'The full contractor inventory in real time - approved reservations join your portfolio',
+  portMyUnits: 'Contractor units in my portfolio',
+  kpiPortfolioAssets: 'Assets in portfolio',
+  kpiActiveClients: 'Active clients',
+  linkedClientCol: 'Linked client',
+  nextViewingCol: 'Next viewing',
+  activeDealCol: 'Deal',
+  noPortfolioUnits: 'No units in your portfolio yet',
+  noPortfolioHint:
+    'Reserve units from the contractor inventory page to add them here',
+  goToInventory: 'To contractor inventory',
+
+  compareAdd: 'Add to compare',
+  compareRemove: 'Remove from compare',
+  compareTitle: 'Compare properties',
+  compareCta: 'Compare',
+  compareClear: 'Clear',
+  compareSelected: 'properties selected',
+  compareFloor: 'Floor',
+  compareCity: 'City',
+  compareDealType: 'Deal type',
+  compareFeatures: 'Features',
+  comparePerSqm: 'Price per sqm',
+
+  // ── Dashboard property page (seller + contractor) ──
+  propNotFound: 'Property not found',
+  propNotFoundHint: 'The link may be wrong or the property was removed',
+  propDetails: 'Property details',
+  propParking: 'Parking',
+  propYearBuilt: 'Year built',
+  propEntry: 'Entry',
+  propEntryFlexible: 'Flexible',
+  propAskedPrice: 'Asking price',
+  propViewPublic: 'View public page',
+  propShare: 'Share property',
+  propLinkCopied: 'Link copied to clipboard!',
+  propInterestedLeads: 'Interested leads',
+  propNoLeads: 'No leads are interested in this property yet',
+  propProjectInventory: 'Project inventory',
+  propSalesProgress: 'Project sales progress',
+  propPriceHistory: 'Price history',
+  propNoPriceChanges: 'No price changes for this unit',
+  propViewings: 'Property viewings',
+  propNoViewings: 'No viewings scheduled for this property',
+  propScheduleViewing: 'Schedule viewing',
+  propEstCommission: 'Estimated commission (2%)',
+  propCommissionHint: 'Based on the asking price',
+  propGoToProject: 'Manage project',
+  propAgentInCharge: 'In charge of this property',
 }
 
 export type DictKey = keyof typeof he

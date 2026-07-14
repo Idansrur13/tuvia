@@ -8,7 +8,7 @@ import { zodOutputFormat } from '@anthropic-ai/sdk/helpers/zod'
 import { z } from 'zod'
 import { LISTINGS, listingById } from '~/data'
 import type { AiRecommendation, Locale } from '~/types'
-import { ensureApiKey } from '../dashboard/anthropic.server'
+import { ensureApiKey } from '../server/anthropic.server'
 
 /* ---------- סכמת הפלט ---------- */
 
@@ -60,7 +60,7 @@ function buildSystemPrompt(locale: Locale) {
     features: l.features.map((f) => f.he),
   }))
 
-  return `אתה "העוזר האישי למציאת דירה" של פלטפורמת נדל"ן בינלאומית — יועץ נדל"ן מקצועי, חם ותכליתי.
+  return `אתה "נדלנומטר" (Nadlanometer) — בוט ההמלצות של פלטפורמת נדל"ן בינלאומית, יועץ נדל"ן מקצועי, חם ותכליתי. כשנשאל לשמך, ענה "נדלנומטר" (או "Nadlanometer" באנגלית).
 
 מאגר הנכסים הזמין כרגע (JSON):
 ${JSON.stringify(inventory, null, 1)}
@@ -81,9 +81,7 @@ export async function askAssistant(
   history: AssistantTurn[],
   locale: Locale,
 ): Promise<AssistantOutcome> {
-  const turns = history
-    .filter((t) => t.content.trim())
-    .slice(-16) // זיכרון הקשר: עד 16 תורות אחרונים
+  const turns = history.filter((t) => t.content.trim()).slice(-16) // זיכרון הקשר: עד 16 תורות אחרונים
   if (turns.length === 0 || turns.at(-1)?.role !== 'user')
     return { ok: false, error: 'generic' }
 
@@ -102,15 +100,16 @@ export async function askAssistant(
     if (!response.parsed_output) return { ok: false, error: 'generic' }
 
     // מסננים המלצות למזהים קיימים בלבד (הגנה מהזיות), ממיינים ותוחמים
-    const recommendations: AiRecommendation[] = response.parsed_output.recommendations
-      .filter((r) => listingById(r.listingId))
-      .map((r) => ({
-        listingId: r.listingId,
-        matchScore: Math.max(0, Math.min(100, Math.round(r.matchScore))),
-        reason: r.reason,
-      }))
-      .sort((a, b) => b.matchScore - a.matchScore)
-      .slice(0, 4)
+    const recommendations: AiRecommendation[] =
+      response.parsed_output.recommendations
+        .filter((r) => listingById(r.listingId))
+        .map((r) => ({
+          listingId: r.listingId,
+          matchScore: Math.max(0, Math.min(100, Math.round(r.matchScore))),
+          reason: r.reason,
+        }))
+        .sort((a, b) => b.matchScore - a.matchScore)
+        .slice(0, 4)
 
     return { ok: true, reply: response.parsed_output.reply, recommendations }
   } catch (error) {

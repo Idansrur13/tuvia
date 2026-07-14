@@ -123,7 +123,7 @@ export default function SellerOverview() {
       l.stage !== 'lost',
   )
   const myDeals = DEALS.filter((d) => d.sellerId === CURRENT_SELLER_ID)
-  const openDeals = myDeals.filter((d) => d.stage !== 'completed')
+  const openDeals = myDeals.filter((d) => d.stage !== 'contractSigned')
   const expectedCommission = openDeals.reduce(
     (sum, d) => sum + (d.commission?.amount ?? 0),
     0,

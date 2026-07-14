@@ -9,6 +9,7 @@ import type {
   LeadSource,
   LeadStage,
   Localized,
+  PaymentApprovalStatus,
   UnitStatus,
   ViewingStatus,
 } from '~/types'
@@ -57,17 +58,34 @@ export const LEAD_STAGES: LeadStage[] = (
   Object.keys(LEAD_STAGE_META) as LeadStage[]
 ).sort((a, b) => LEAD_STAGE_META[a].order - LEAD_STAGE_META[b].order)
 
-/** שלבי העסקה שהלקוח רואה בסטטוס ההתקדמות. */
+/** שלבי העסקה (פרק 16.1): מו"מ ← זכרון דברים ← נשלחה ← נחתמה ← שולמה ← חתימת חוזה. */
 export const DEAL_STAGE_META: Record<
   DealStage,
   { label: Localized; order: number }
 > = {
-  reserved: { label: L('שריון', 'Reserved'), order: 0 },
-  contract: { label: L('חוזה', 'Contract'), order: 1 },
-  financing: { label: L('מימון', 'Financing'), order: 2 },
-  construction: { label: L('בנייה', 'Construction'), order: 3 },
-  handover: { label: L('מסירה', 'Handover'), order: 4 },
-  completed: { label: L('הושלם', 'Completed'), order: 5 },
+  negotiation: { label: L('משא ומתן', 'Negotiation'), order: 0 },
+  memorandum: { label: L('זכרון דברים', 'Memorandum'), order: 1 },
+  orderSent: { label: L('הזמנה נשלחה', 'Order sent'), order: 2 },
+  orderSigned: { label: L('הזמנה נחתמה', 'Order signed'), order: 3 },
+  orderPaid: { label: L('הזמנה שולמה', 'Order paid'), order: 4 },
+  contractSigned: { label: L('חתימת חוזה', 'Contract signed'), order: 5 },
+}
+
+/** סטטוסי אישור תשלום דו-שלבי (פרק 16.2). */
+export const PAYMENT_APPROVAL_META: Record<
+  PaymentApprovalStatus,
+  { label: Localized; badge: BadgeTone }
+> = {
+  requested: { label: L('בקשה נשלחה', 'Requested'), badge: 'primary' },
+  contractorApproved: {
+    label: L('אושר ע"י הקבלן', 'Contractor approved'),
+    badge: 'warning',
+  },
+  adminConfirmed: {
+    label: L('אושר סופית (מנהל)', 'Admin confirmed'),
+    badge: 'success',
+  },
+  rejected: { label: L('נדחה', 'Rejected'), badge: 'neutral' },
 }
 
 /** חום הליד — לתיעדוף בתצוגה המצומצמת (פרק 13). */

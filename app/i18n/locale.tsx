@@ -1,7 +1,8 @@
 /*
  * תשתית רב-לשוניות גלובלית (פרק 14 באפיון).
  * - useLocale() נותן locale, dir, מתגי שפה, t() לתוכן דינמי ו-tt() למחרוזות ממשק.
- * - החלפת שפה מסנכרנת lang/dir על <html> ושומרת ל-localStorage (העדפה נשמרת).
+ * - ההעדפה נשמרת ב-cookie כדי שה-loader של ה-root ירנדר בשרת בשפה הנכונה,
+ *   ו-<html lang/dir> מרונדרים מה-context ב-root.tsx (בלי מוטציה ידנית).
  */
 import {
   createContext,
@@ -31,22 +32,21 @@ interface LocaleContextValue {
 }
 
 const LocaleContext = createContext<LocaleContextValue | null>(null)
-const STORAGE_KEY = 'locale'
+export const LOCALE_COOKIE = 'locale'
 
-export function LocaleProvider({ children }: { children: ReactNode }) {
-  const [locale, setLocale] = useState<Locale>('he')
+export function LocaleProvider({
+  children,
+  initialLocale = 'en',
+}: {
+  children: ReactNode
+  /* מגיע מה-loader של ה-root (נקרא מה-cookie בשרת); אנגלית ברירת מחדל (פרק 14). */
+  initialLocale?: Locale
+}) {
+  const [locale, setLocale] = useState<Locale>(initialLocale)
 
-  // אתחול מהעדפה שמורה (רץ פעם אחת בצד הלקוח)
+  // שמירת ההעדפה ל-cookie כדי שהרינדור הבא בשרת יצא כבר בשפה הנכונה
   useEffect(() => {
-    const saved = localStorage.getItem(STORAGE_KEY)
-    if (saved === 'he' || saved === 'en') setLocale(saved)
-  }, [])
-
-  // סנכרון <html lang/dir> ושמירת ההעדפה
-  useEffect(() => {
-    document.documentElement.lang = locale
-    document.documentElement.dir = LOCALE_DIRECTION[locale]
-    localStorage.setItem(STORAGE_KEY, locale)
+    document.cookie = `${LOCALE_COOKIE}=${locale}; path=/; max-age=31536000; samesite=lax`
   }, [locale])
 
   const value = useMemo<LocaleContextValue>(() => {

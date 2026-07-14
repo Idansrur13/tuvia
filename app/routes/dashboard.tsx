@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router'
-import { Badge, Text, cn, fadeUp } from '../components/ui'
+import { Badge, cn, fadeUp } from '../components/ui'
 import { motion } from 'motion/react'
 
 import { Logo } from '../components/logo'
@@ -33,10 +33,30 @@ interface NavItem {
 
 const NAVS: Record<DashRole, NavItem[]> = {
   contractor: [
-    { to: '/dashboard', labelKey: 'navMyProjects', icon: BuildingIcon, end: true },
-    { to: '/dashboard/leads', labelKey: 'navLeads', icon: FunnelIcon, end: false },
-    { to: '/dashboard/import', labelKey: 'navImport', icon: SparklesIcon, end: false },
-    { to: '/dashboard/chat', labelKey: 'navChat', icon: MessageSquareIcon, end: false },
+    {
+      to: '/dashboard',
+      labelKey: 'navMyProjects',
+      icon: BuildingIcon,
+      end: true,
+    },
+    {
+      to: '/dashboard/leads',
+      labelKey: 'navLeads',
+      icon: FunnelIcon,
+      end: false,
+    },
+    {
+      to: '/dashboard/import',
+      labelKey: 'navImport',
+      icon: SparklesIcon,
+      end: false,
+    },
+    {
+      to: '/dashboard/chat',
+      labelKey: 'navChat',
+      icon: MessageSquareIcon,
+      end: false,
+    },
   ],
   seller: [
     {
@@ -52,6 +72,12 @@ const NAVS: Record<DashRole, NavItem[]> = {
       end: false,
     },
     {
+      to: '/dashboard/seller/inventory',
+      labelKey: 'navInventory',
+      icon: BuildingIcon,
+      end: false,
+    },
+    {
       to: '/dashboard/seller/viewings',
       labelKey: 'navViewings',
       icon: CalendarDaysIcon,
@@ -63,8 +89,18 @@ const NAVS: Record<DashRole, NavItem[]> = {
       icon: HandshakeIcon,
       end: false,
     },
-    { to: '/dashboard/leads', labelKey: 'navLeads', icon: FunnelIcon, end: false },
-    { to: '/dashboard/chat', labelKey: 'navChat', icon: MessageSquareIcon, end: false },
+    {
+      to: '/dashboard/leads',
+      labelKey: 'navLeads',
+      icon: FunnelIcon,
+      end: false,
+    },
+    {
+      to: '/dashboard/chat',
+      labelKey: 'navChat',
+      icon: MessageSquareIcon,
+      end: false,
+    },
   ],
 }
 
@@ -74,8 +110,15 @@ const ROLE_LABEL: Record<DashRole, DictKey> = {
 }
 
 /** פרטי משתמש הדמו לכל תפקיד — עד שיחובר auth. */
-const ROLE_USER: Record<DashRole, { initials: string; name: string; org: string }> = {
-  contractor: { initials: 'יכ', name: 'יוסי כהן', org: 'י.כ. בנייה ופיתוח בע״מ' },
+const ROLE_USER: Record<
+  DashRole,
+  { initials: string; name: string; org: string }
+> = {
+  contractor: {
+    initials: 'יכ',
+    name: 'יוסי כהן',
+    org: 'י.כ. בנייה ופיתוח בע״מ',
+  },
   seller: { initials: 'מל', name: 'מיכל לוי', org: 'רי/מקס תל אביב' },
 }
 
@@ -126,9 +169,9 @@ function NavItems({
           onClick={onNavigate}
           className={({ isActive }) =>
             cn(
-              'flex items-center gap-3 rounded-xl px-2 border border-primary-50 py-2.5 text-sm font-medium transition ',
+              'flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition',
               isActive
-                ? 'bg-primary-50 text-primary-700'
+                ? 'bg-linear-to-l from-primary-500/90 to-primary-600 text-white shadow-brand'
                 : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900',
             )
           }
@@ -146,16 +189,14 @@ function UserCard({ role }: { role: DashRole }) {
   const user = ROLE_USER[role]
   return (
     <div className='flex items-center gap-3 rounded-2xl border border-gray-100 bg-gray-50 p-3'>
-      <span className='flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary-500 font-bold text-white'>
+      <span className='flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-linear-to-br from-primary-500 to-accent-400 font-bold text-white'>
         {user.initials}
       </span>
       <div className='min-w-0'>
         <p className='truncate text-sm font-semibold text-gray-900'>
           {user.name}
         </p>
-        <Text as='p' variant='small' className='truncate'>
-          {user.org}
-        </Text>
+        <p className='truncate text-xs text-gray-500'>{user.org}</p>
       </div>
       <Badge className='mr-auto shrink-0'>{tt(ROLE_LABEL[role])}</Badge>
     </div>
@@ -183,17 +224,15 @@ export default function DashboardLayout() {
   }
 
   return (
-    <div className='min-h-screen bg-gray-50'>
+    <div className='min-h-screen'>
       {/* Sidebar — צד ימין (RTL), דסקטופ בלבד */}
-      <aside className='fixed inset-y-0 right-0 z-40 hidden w-64 flex-col border-e border-gray-100 bg-white p-4 lg:flex'>
+      <aside className='fixed inset-y-0 inset-s-0 z-40 hidden w-64 flex-col border-e border-gray-100 bg-white/90 p-4 backdrop-blur-md lg:flex'>
         <div className='px-2 py-2'>
           <Logo />
         </div>
 
         <div className='mt-4'>
-          <Text as='p' variant='small' className='mb-1.5 px-1'>
-            {tt('roleView')}
-          </Text>
+          <p className='mb-1.5 px-1 text-xs text-gray-500'>{tt('roleView')}</p>
           <RoleSwitch role={role} onChange={switchRole} />
         </div>
 

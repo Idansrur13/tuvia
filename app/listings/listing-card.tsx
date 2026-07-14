@@ -11,12 +11,27 @@ import {
   spring,
   viewportOnce,
 } from '../components/ui'
-import { ChevronLeft, ChevronRight, HeartIcon } from 'lucide-react'
+import {
+  ArrowLeftRightIcon,
+  ChevronLeft,
+  ChevronRight,
+  HeartIcon,
+} from 'lucide-react'
 import type { Listing } from '~/types'
 import { useLocale } from '~/i18n/locale'
 
-export function ListingCard({ listing }: { listing: Listing }) {
-  const { t } = useLocale()
+export function ListingCard({
+  listing,
+  compared,
+  onCompareToggle,
+}: {
+  listing: Listing
+  /** האם הנכס נבחר להשוואה (פרק 3.1). */
+  compared?: boolean
+  /** קיים רק בעמודים שתומכים בהשוואה. */
+  onCompareToggle?: (id: string) => void
+}) {
+  const { t, tt } = useLocale()
   const [imageIndex, setImageIndex] = useState(0)
   const [liked, setLiked] = useState(false)
 
@@ -70,6 +85,29 @@ export function ListingCard({ listing }: { listing: Listing }) {
             >
               {t(listing.badge)}
             </Badge>
+          )}
+
+          {/* השוואת דירות (פרק 3.1) */}
+          {onCompareToggle && (
+            <motion.button
+              type='button'
+              aria-label={compared ? tt('compareRemove') : tt('compareAdd')}
+              title={compared ? tt('compareRemove') : tt('compareAdd')}
+              whileHover={{ scale: 1.15 }}
+              whileTap={{ scale: 0.8 }}
+              onClick={guard(() => onCompareToggle(listing.id))}
+              className='absolute top-12 left-3'
+            >
+              <span
+                className={
+                  compared
+                    ? 'flex h-7 w-7 items-center justify-center rounded-full bg-primary-500 text-white shadow'
+                    : 'flex h-7 w-7 items-center justify-center rounded-full bg-black/40 text-white drop-shadow'
+                }
+              >
+                <ArrowLeftRightIcon className='h-4 w-4' />
+              </span>
+            </motion.button>
           )}
 
           <motion.button

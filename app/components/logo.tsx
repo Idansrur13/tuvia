@@ -3,7 +3,9 @@ import { LayoutGridIcon } from 'lucide-react'
 export function Logo({ size = 'md' }: { size?: 'md' | 'sm' }) {
   return (
     <a href='/' className='flex items-center gap-2 text-primary-500'>
-      <LayoutGridIcon className={size === 'md' ? 'h-8 w-8' : 'h-6 w-6'} />
+      <span className='flex items-center justify-center rounded-xl bg-linear-to-br from-primary-500 to-accent-400 p-1.5 text-white shadow-brand'>
+        <LayoutGridIcon className={size === 'md' ? 'h-5 w-5' : 'h-4 w-4'} />
+      </span>
       <span
         className={
           size === 'md'

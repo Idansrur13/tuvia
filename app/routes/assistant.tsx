@@ -23,10 +23,11 @@ import type {
 
 export function meta({}: Route.MetaArgs) {
   return [
-    { title: 'עוזר AI למציאת דירה | AI Home Assistant' },
+    { title: 'נדלנומטר | Nadlanometer - AI Assistant' },
     {
       name: 'description',
-      content: 'שוחחו עם העוזר החכם — הוא ימצא נכסים מתאימים וימליץ על הסביבה.',
+      content:
+        'שוחחו עם נדלנומטר, הבוט החכם - הוא ימצא נכסים מתאימים וימליץ על הסביבה.',
     },
   ]
 }

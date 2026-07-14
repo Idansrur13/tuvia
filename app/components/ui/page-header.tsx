@@ -29,18 +29,25 @@ export function PageHeader({
       )}
     >
       <div>
-        <div className='flex items-center gap-2.5'>
+        <div className='flex items-center gap-3'>
           {icon && (
-            <span className='flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-primary-500 text-white'>
+            <span className='flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-linear-to-br from-primary-500 to-accent-400 text-white shadow-brand'>
               {icon}
             </span>
           )}
-          <Heading level={1} size='lg'>
-            {title}
-          </Heading>
+          <div>
+            <Heading
+              level={1}
+              size='lg'
+              className='tracking-tight text-ink-800'
+            >
+              {title}
+            </Heading>
+            {/* קו מותג קצר מתחת לכותרת — חתימה ויזואלית של הפלטפורמה */}
+          </div>
         </div>
         {subtitle && (
-          <Text variant='muted' className='mt-1'>
+          <Text variant='muted' className='mt-2'>
             {subtitle}
           </Text>
         )}

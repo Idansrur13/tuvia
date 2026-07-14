@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Link, data } from 'react-router'
+import { Link, data, useParams } from 'react-router'
 import { AnimatePresence, MotionConfig, motion } from 'motion/react'
 import type { Route } from './+types/property'
 import {
@@ -31,10 +31,14 @@ import {
   CheckIcon,
   ChevronLeft,
   ChevronRight,
+  HammerIcon,
   HeartIcon,
+  KeyRoundIcon,
+  LayersIcon,
   MapPinIcon,
   MaximizeIcon,
   PhoneIcon,
+  RulerIcon,
   Share2Icon,
   XIcon,
 } from 'lucide-react'
@@ -42,6 +46,7 @@ import {
   LISTING_CATEGORIES,
   USERS,
   listingById,
+  organizationById,
   projectById,
   sameProjectListings,
   similarListings,
@@ -50,6 +55,7 @@ import type { Listing, MediaAsset } from '~/types'
 import { useLocale } from '~/i18n/locale'
 import LogIn from '~/components/premisions/logIn'
 import { Header } from '~/components/premisions/header'
+import { DetailTile } from './dashboard/property'
 
 export function meta({ matches }: Route.MetaArgs) {
   const match = matches.find((m) => m?.id === 'routes/property')
@@ -153,7 +159,15 @@ function ContactCard({ listing }: { listing: Listing }) {
   const { tt } = useLocale()
   const [sent, setSent] = useState(false)
   const agent = USERS.find((u) => u.id === listing.agentId)
-  const agentName = agent?.name ?? tt('roleAgent')
+  /*
+   * אנונימיות קבלנים (פרק 17): באזור הציבורי קבלן מוצג כמספר/כינוי
+   * בלבד, ללא שם וללא טלפון ישיר. הקשר נוצר דרך השארת ליד.
+   */
+  const isContractor = listing.agentRole === 'contractor'
+  const contractorAlias = organizationById(agent?.organizationId)?.alias
+  const agentName = isContractor
+    ? `${tt('roleContractor')} ${contractorAlias ?? ''}`.trim()
+    : (agent?.name ?? tt('roleAgent'))
   const perSqm = Math.round(listing.price.amount / listing.sqm)
 
   return (
@@ -195,13 +209,15 @@ function ContactCard({ listing }: { listing: Listing }) {
             · {tt('brandName')}
           </Text>
         </div>
-        <a
-          href={`tel:${agent?.phone ?? ''}`}
-          aria-label={tt('callAgent')}
-          className='flex h-10 w-10 items-center justify-center rounded-full bg-white text-primary-600 shadow-sm transition hover:bg-primary-50'
-        >
-          <PhoneIcon className='h-4 w-4' />
-        </a>
+        {!isContractor && (
+          <a
+            href={`tel:${agent?.phone ?? ''}`}
+            aria-label={tt('callAgent')}
+            className='flex h-10 w-10 items-center justify-center rounded-full bg-white text-primary-600 shadow-sm transition hover:bg-primary-50'
+          >
+            <PhoneIcon className='h-4 w-4' />
+          </a>
+        )}
       </div>
 
       {/* Form */}
@@ -225,7 +241,11 @@ function ContactCard({ listing }: { listing: Listing }) {
           }}
         >
           <Field label={tt('fullName')}>
-            <Input name='name' required placeholder={tt('fullNamePlaceholder')} />
+            <Input
+              name='name'
+              required
+              placeholder={tt('fullNamePlaceholder')}
+            />
           </Field>
           <Field label={tt('phone')}>
             <Input
@@ -294,7 +314,8 @@ export default function PropertyPage({ loaderData }: Route.ComponentProps) {
   const [lightbox, setLightbox] = useState<number | null>(null)
   const [liked, setLiked] = useState(false)
   const [copied, setCopied] = useState(false)
-
+  const projectId = useParams()
+  console.log('hiiiiiiiiiii', listing, loaderData)
   const share = async () => {
     try {
       await navigator.clipboard.writeText(window.location.href)
@@ -316,7 +337,8 @@ export default function PropertyPage({ loaderData }: Route.ComponentProps) {
     {
       icon: CarIcon,
       label: tt('hlParking'),
-      value: (listing.parking ?? 0) > 0 ? String(listing.parking) : tt('hlNone'),
+      value:
+        (listing.parking ?? 0) > 0 ? String(listing.parking) : tt('hlNone'),
     },
     {
       icon: CalendarIcon,
@@ -474,6 +496,71 @@ export default function PropertyPage({ loaderData }: Route.ComponentProps) {
                   </div>
                 ))}
               </motion.div>
+              {/* פרטי הנכס */}
+              <Card>
+                <Heading level={3} size='md' className='mb-3'>
+                  {tt('propDetails')}
+                </Heading>
+                <div className='grid grid-cols-2 gap-3 sm:grid-cols-3'>
+                  <DetailTile
+                    icon={<BedDoubleIcon className='h-4 w-4' />}
+                    label={tt('colRooms')}
+                    value={listing.rooms}
+                  />
+                  <DetailTile
+                    icon={<RulerIcon className='h-4 w-4' />}
+                    label={tt('colSqm')}
+                    value={listing.sqm}
+                  />
+                  {listing.floor && (
+                    <DetailTile
+                      icon={<LayersIcon className='h-4 w-4' />}
+                      label={tt('compareFloor')}
+                      value={listing.floor}
+                    />
+                  )}
+                  {listing.parking != null && (
+                    <DetailTile
+                      icon={<CarIcon className='h-4 w-4' />}
+                      label={tt('propParking')}
+                      value={listing.parking}
+                    />
+                  )}
+                  {listing.yearBuilt && (
+                    <DetailTile
+                      icon={<HammerIcon className='h-4 w-4' />}
+                      label={tt('propYearBuilt')}
+                      value={listing.yearBuilt}
+                    />
+                  )}
+                  {listing.entry && (
+                    <DetailTile
+                      icon={<KeyRoundIcon className='h-4 w-4' />}
+                      label={tt('propEntry')}
+                      value={
+                        listing.entry === 'flexible'
+                          ? tt('propEntryFlexible')
+                          : new Date(listing.entry).getFullYear()
+                      }
+                    />
+                  )}
+                </div>
+
+                {/* מאפיינים */}
+                {listing.features.length > 0 && (
+                  <div className='mt-4 flex flex-wrap gap-2'>
+                    {listing.features.map((f, i) => (
+                      <Badge key={i} variant='neutral'>
+                        {t(f)}
+                      </Badge>
+                    ))}
+                  </div>
+                )}
+
+                <Text variant='muted' className='mt-4'>
+                  {t(listing.description)}
+                </Text>
+              </Card>
 
               {/* Description */}
               <motion.div variants={fadeUp}>
@@ -484,7 +571,8 @@ export default function PropertyPage({ loaderData }: Route.ComponentProps) {
                   {t(listing.description)}
                 </Text>
                 <Text variant='muted' className='mt-3'>
-                  {tt('builtYear')}: {listing.yearBuilt} · {tt('categoryLabel')}:{' '}
+                  {tt('builtYear')}: {listing.yearBuilt} · {tt('categoryLabel')}
+                  :{' '}
                   {t(
                     LISTING_CATEGORIES.find((c) => c.id === listing.category)
                       ?.label ?? { he: '', en: '' },

@@ -37,13 +37,7 @@ import {
   TableIcon,
   XIcon,
 } from 'lucide-react'
-import type {
-  Invite,
-  Lead,
-  LeadHeat,
-  LeadSource,
-  LeadStage,
-} from '~/types'
+import type { Invite, Lead, LeadHeat, LeadSource, LeadStage } from '~/types'
 import {
   COUNTRIES,
   INVITES,
@@ -55,6 +49,7 @@ import {
   LEAD_STAGE_META,
   PROJECTS,
   USERS,
+  accessWindowEnd,
   formatMoney,
   projectById,
 } from '~/data'
@@ -190,6 +185,7 @@ function LeadDrawer({
   onChangeStage,
   onChangeHeat,
   onSetFollowUp,
+
   onAddNote,
 }: {
   lead: Lead
@@ -930,7 +926,27 @@ export default function ContractorLeads() {
         {invitesExpanded && (
           <ul className='divide-y divide-gray-50 border-t border-gray-100'>
             {invites.map((invite) => (
-              <InviteRow key={invite.id} invite={invite} />
+              <InviteRow
+                key={invite.id}
+                invite={invite}
+                onRenew={(id) =>
+                  /* חידוש גישה ל-3 חודשים - רק המתווך/הקבלן (פרק 4.1) */
+                  setInvites((prev) =>
+                    prev.map((i) =>
+                      i.id === id
+                        ? {
+                            ...i,
+                            status: 'joined',
+                            accessUntil: accessWindowEnd(
+                              new Date().toISOString(),
+                            ),
+                            updatedAt: new Date().toISOString(),
+                          }
+                        : i,
+                    ),
+                  )
+                }
+              />
             ))}
           </ul>
         )}
@@ -982,6 +998,7 @@ export default function ContractorLeads() {
               dir='ltr'
             />
           </Field>
+
           <Field label={tt('assignProject')}>
             <Select name='project' defaultValue={PROJECTS[0].id}>
               {PROJECTS.map((p) => (
@@ -1003,7 +1020,13 @@ export default function ContractorLeads() {
   )
 }
 
-function InviteRow({ invite }: { invite: Invite }) {
+function InviteRow({
+  invite,
+  onRenew,
+}: {
+  invite: Invite
+  onRenew: (id: string) => void
+}) {
   const { t, tt, formatDate } = useLocale()
   const project = projectById(invite.projectId ?? '')
 
@@ -1024,9 +1047,26 @@ function InviteRow({ invite }: { invite: Invite }) {
       <Text as='span' variant='small'>
         {tt('sentOn')} {formatDate(invite.createdAt)}
       </Text>
-      <Badge variant={invite.status === 'joined' ? 'success' : 'warning'}>
-        {invite.status === 'joined' ? tt('statusJoined') : tt('statusPending')}
-      </Badge>
+      {/* גישה זמנית 3 חודשים (פרק 4.1) */}
+      {invite.status === 'joined' && invite.accessUntil && (
+        <Text as='span' variant='small'>
+          {tt('accessUntilLabel')} {formatDate(invite.accessUntil)}
+        </Text>
+      )}
+      {invite.status === 'blocked' ? (
+        <>
+          <Badge variant='neutral'>{tt('accessBlockedBadge')}</Badge>
+          <Button size='sm' variant='outline' onClick={() => onRenew(invite.id)}>
+            {tt('renewAccess')}
+          </Button>
+        </>
+      ) : (
+        <Badge variant={invite.status === 'joined' ? 'success' : 'warning'}>
+          {invite.status === 'joined'
+            ? tt('statusJoined')
+            : tt('statusPending')}
+        </Badge>
+      )}
     </li>
   )
 }

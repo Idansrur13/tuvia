@@ -8,7 +8,7 @@ export function Card({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
   return (
     <div
       className={cn(
-        'rounded-2xl border border-gray-100 bg-white p-4 shadow-sm',
+        'rounded-2xl border border-white/60 bg-white/85 p-4 shadow-card backdrop-blur-sm transition-shadow duration-300 hover:shadow-card-hover',
         className,
       )}
       {...props}
@@ -21,10 +21,11 @@ export function Card({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
 type StatCardTone = 'primary' | 'success' | 'warning' | 'danger'
 
 const statCardTones: Record<StatCardTone, string> = {
-  primary: 'bg-primary-50 text-primary-600',
-  success: 'bg-success-50 text-success-700',
-  warning: 'bg-warning-50 text-warning-700',
-  danger: 'bg-danger-50 text-danger-700',
+  primary:
+    'bg-linear-to-br from-primary-500 to-accent-400 text-white shadow-brand',
+  success: 'bg-linear-to-br from-success-500 to-emerald-400 text-white',
+  warning: 'bg-linear-to-br from-warning-500 to-amber-400 text-white',
+  danger: 'bg-linear-to-br from-danger-500 to-rose-400 text-white',
 }
 
 export interface StatCardProps {
@@ -46,12 +47,20 @@ export function StatCard({
   className,
 }: StatCardProps) {
   return (
-    <Card className={cn('flex items-start justify-between gap-3', className)}>
+    <Card
+      className={cn(
+        'relative flex items-start justify-between gap-3 overflow-hidden',
+        className,
+      )}
+    >
+      {/* פס מותג עדין בראש הכרטיס */}
       <div>
         <Text as='span' variant='muted'>
           {label}
         </Text>
-        <p className='mt-1 text-2xl font-extrabold text-gray-900'>{value}</p>
+        <p className='mt-1 text-2xl font-extrabold tracking-tight text-ink-800'>
+          {value}
+        </p>
         {hint && (
           <Text as='p' variant='small' className='mt-1'>
             {hint}

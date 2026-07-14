@@ -63,7 +63,8 @@ export interface Project extends Timestamps {
  * שריון/הזמנת יחידה על ציר קבלן↔מוכר (פרק 8.1).
  * מוכר מבקש → קבלן מאשר/דוחה. שכבת הנעילה מונעת מכירה כפולה.
  */
-export type ReservationStatus = 'requested' | 'approved' | 'rejected' | 'expired'
+export type ReservationStatus =
+  'requested' | 'approved' | 'rejected' | 'expired'
 
 export interface Reservation extends Timestamps {
   id: Id

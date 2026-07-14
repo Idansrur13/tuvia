@@ -1,6 +1,6 @@
 /*
  * צ׳אט ברמה גבוהה — שיחות מקושרות-הקשר, נקרא/נמסר, מדיה.
- * פרק 9. מחליף את הטיוטה מבוססת-Firebase שהייתה ב-routes/dashboard/chat.tsx.
+ * פרק 9. מחליף את הטיוטה מבוססת-Firebase שהייתה ב-routes/contractor/chat.tsx.
  */
 import type { Id, ISODate, MediaAsset, Timestamps } from './common'
 import type { Role } from './user'
@@ -29,7 +29,8 @@ export interface Conversation extends Timestamps {
 }
 
 /** סטטוס מסירה של הודעה (פרק 9). */
-export type MessageDelivery = 'sending' | 'sent' | 'delivered' | 'read' | 'failed'
+export type MessageDelivery =
+  'sending' | 'sent' | 'delivered' | 'read' | 'failed'
 
 export interface ChatMessage {
   id: Id

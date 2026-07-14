@@ -59,9 +59,35 @@ export interface Organization extends Timestamps {
   id: Id
   type: OrganizationType
   name: string
+  /**
+   * אנונימיות קבלנים (פרק 17): באזור הציבורי קבלן מוצג רק
+   * במספר/כינוי, ללא שם. לדוגמה: "C-104".
+   */
+  alias?: string
   logo?: MediaAsset
   /** אזורי פעילות (למוכר/סוכנות — פרק 6). */
   regions?: string[]
   /** אושר ע"י אדמין להצגה במרקטפלייס. */
   verified: boolean
+}
+
+/* ---------- בקשת הצטרפות קבלן/מתווך (פרק 17) ---------- */
+
+/** קבלן או מתווך חדש מגיש בקשה; מאושר רק על ידי מנהל. */
+export type PartnerApplicationStatus = 'pending' | 'approved' | 'rejected'
+
+export interface PartnerApplication extends Timestamps {
+  id: Id
+  /** סוג השותף המבקש להצטרף. */
+  type: OrganizationType
+  companyName: string
+  contactName: string
+  email: string
+  phone?: string
+  country: string
+  status: PartnerApplicationStatus
+  /** האדמין שטיפל בבקשה. */
+  reviewedById?: Id
+  reviewedAt?: ISODate
+  note?: string
 }

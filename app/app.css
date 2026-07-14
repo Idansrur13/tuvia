@@ -21,8 +21,24 @@
   --color-primary-800: #075985;
   --color-primary-900: #0c4a6e;
 
+  /* כחול-לילה עמוק — סרגל צד, כותרות פרימיום, רקעים כהים */
+  --color-ink-50: #f4f7fb;
+  --color-ink-100: #e6edf5;
+  --color-ink-300: #8698b3;
+  --color-ink-400: #64748b;
+  --color-ink-600: #27364b;
+  --color-ink-700: #1c2a3f;
+  --color-ink-800: #131f31;
+  --color-ink-900: #0b1526;
+  --color-ink-950: #060d1a;
+
   /* צבע משני לגרדיאנטים והדגשות */
   --color-accent-400: #22d3ee;
+
+  /* זהב עדין — הדגשות יוקרה (מחירים, כוכבים, פרימיום) */
+  --color-gold-300: #fcd34d;
+  --color-gold-400: #f5b83d;
+  --color-gold-500: #d99a26;
 
   /* צבע הצלחה — למשל תגית "להשכרה" או "נמכרה" */
   --color-success-50: #ecfdf5;
@@ -38,9 +54,26 @@
   --color-danger-50: #fef2f2;
   --color-danger-500: #ef4444;
   --color-danger-700: #b91c1c;
+
+  /* צללים רכים לכרטיסים — עומק בלי מסגרות כבדות */
+  --shadow-card: 0 1px 2px rgb(11 21 38 / 0.04), 0 8px 24px -12px rgb(11 21 38 / 0.12);
+  --shadow-card-hover: 0 2px 4px rgb(11 21 38 / 0.05), 0 16px 40px -16px rgb(11 21 38 / 0.22);
+  --shadow-brand: 0 8px 20px -8px rgb(14 165 233 / 0.5);
 }
 
 html,
 body {
-  @apply bg-white text-gray-900 antialiased;
+  @apply text-gray-900 antialiased;
+}
+
+/*
+ * רקע האפליקציה — "שמיים" עדינים בסגנון אדריכלי:
+ * הילות תכלת רכות בפינות + רשת שרטוט (blueprint) כמעט שקופה.
+ */
+body {
+  background-color: #f6f8fb;
+  background-image: radial-gradient(60rem 32rem at 3% -8%, rgba(137, 205, 236, 0.29), #fefeff 60%);
+  background-attachment: fixed;
+  background-size: auto, auto, 32px 32px, 32px 32px;
+
 }

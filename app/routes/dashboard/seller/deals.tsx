@@ -20,8 +20,12 @@ import type { Deal, DealStage } from '~/types'
 import {
   DEALS,
   DEAL_STAGE_META,
+  PAYMENT_APPROVALS,
+  PAYMENT_APPROVAL_META,
   PROJECTS,
+  accessWindowEnd,
   formatMoney,
+  isWithinWindow,
   unitById,
   userById,
 } from '~/data'
@@ -37,12 +41,13 @@ export function meta({}: Route.MetaArgs) {
 const DEAL_STAGES = Object.keys(DEAL_STAGE_META) as DealStage[]
 
 export default function SellerDeals() {
-  const { t, tt, locale } = useLocale()
+  const { t, tt, locale, formatDate } = useLocale()
   const [deals, setDeals] = useState<Deal[]>(() =>
     DEALS.filter((d) => d.sellerId === CURRENT_SELLER_ID),
   )
 
-  const openDeals = deals.filter((d) => d.stage !== 'completed')
+  /* עסקה "פתוחה" = עוד לא נחתם חוזה (פרק 16.1). */
+  const openDeals = deals.filter((d) => d.stage !== 'contractSigned')
   const pipelineByCurrency = openDeals.reduce<Record<string, number>>(
     (acc, d) => {
       acc[d.price.currency] = (acc[d.price.currency] ?? 0) + d.price.amount
@@ -55,7 +60,7 @@ export default function SellerDeals() {
     0,
   )
   const receivedCommission = deals
-    .filter((d) => d.stage === 'completed')
+    .filter((d) => d.stage === 'contractSigned')
     .reduce((sum, d) => sum + (d.commission?.amount ?? 0), 0)
   const commissionCurrency = deals[0]?.commission?.currency ?? 'ILS'
 
@@ -131,6 +136,9 @@ export default function SellerDeals() {
                   {tt('colCommission')}
                 </th>
                 <th className='px-3 py-2.5 text-start font-medium'>
+                  {tt('colCommWindow')}
+                </th>
+                <th className='px-3 py-2.5 text-start font-medium'>
                   {tt('colPayments')}
                 </th>
                 <th className='px-3 py-2.5 text-start font-medium'>
@@ -189,7 +197,7 @@ export default function SellerDeals() {
                         <div
                           className={cn(
                             'h-full rounded-full',
-                            deal.stage === 'completed'
+                            deal.stage === 'contractSigned'
                               ? 'bg-success-500'
                               : 'bg-primary-400',
                           )}
@@ -209,6 +217,28 @@ export default function SellerDeals() {
                         '—'
                       )}
                     </td>
+                    {/* חלון עמלת 3 החודשים (פרק 16.3) */}
+                    <td className='whitespace-nowrap px-3 py-3'>
+                      {deal.clientSince ? (
+                        isWithinWindow(deal.clientSince) ? (
+                          <div>
+                            <Badge variant='success'>
+                              {tt('commInWindow')}
+                            </Badge>
+                            <Text as='p' variant='small' className='mt-0.5'>
+                              {tt('accessUntilLabel')}{' '}
+                              {formatDate(accessWindowEnd(deal.clientSince))}
+                            </Text>
+                          </div>
+                        ) : (
+                          <Badge variant='neutral'>
+                            {tt('commOutWindow')}
+                          </Badge>
+                        )
+                      ) : (
+                        '—'
+                      )}
+                    </td>
                     <td className='px-3 py-3 text-xs text-gray-600'>
                       {paidCount}/{deal.payments.length} {tt('paidOf')}
                     </td>
@@ -223,7 +253,7 @@ export default function SellerDeals() {
               })}
               {deals.length === 0 && (
                 <tr>
-                  <td colSpan={7} className='p-4'>
+                  <td colSpan={8} className='p-4'>
                     <EmptyState
                       title={tt('dlNoDeals')}
                       icon={<HandshakeIcon className='h-5 w-5' />}
@@ -234,6 +264,51 @@ export default function SellerDeals() {
             </tbody>
           </table>
         </div>
+      </Card>
+
+      {/* ---------- אישורי תשלום דו-שלביים (פרק 16.2) ---------- */}
+      <Card className='p-0'>
+        <div className='border-b border-gray-100 p-4'>
+          <p className='font-semibold text-gray-900'>
+            {tt('payApprovalsTitle')}
+          </p>
+          <Text as='p' variant='small'>
+            {tt('payApprovalsSub')}
+          </Text>
+        </div>
+        <ul className='divide-y divide-gray-50'>
+          {PAYMENT_APPROVALS.filter((a) =>
+            deals.some((d) => d.id === a.dealId),
+          ).map((approval) => {
+            const meta = PAYMENT_APPROVAL_META[approval.status]
+            const deal = deals.find((d) => d.id === approval.dealId)
+            const client = userById(deal?.clientId)
+            return (
+              <li
+                key={approval.id}
+                className='flex flex-wrap items-center gap-x-4 gap-y-1 px-4 py-3'
+              >
+                <div className='min-w-0 flex-1'>
+                  <p className='text-sm font-semibold text-gray-900'>
+                    {formatMoney(approval.amount, locale)}
+                    {client && (
+                      <span className='font-normal text-gray-500'>
+                        {' '}
+                        · {client.name}
+                      </span>
+                    )}
+                  </p>
+                  <Text as='p' variant='small'>
+                    {formatDate(approval.createdAt)}
+                    {approval.confirmationRef &&
+                      ` · ${tt('payRefLabel')}: ${approval.confirmationRef}`}
+                  </Text>
+                </div>
+                <Badge variant={meta.badge}>{t(meta.label)}</Badge>
+              </li>
+            )
+          })}
+        </ul>
       </Card>
     </div>
   )

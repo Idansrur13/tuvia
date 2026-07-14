@@ -54,7 +54,7 @@ export async function action({
     const file = formData.get('file')
     // מחזירים קוד שגיאה (ולא טקסט) כדי שהלקוח יתרגם לפי השפה
     if (!(file instanceof File) || !file.name) return { error: 'noFile' }
-    const { parseFileWithAi } = await import('../../dashboard/ai.server')
+    const { parseFileWithAi } = await import('../../server/ai.server')
     const outcome = await parseFileWithAi(file)
     return outcome.ok ? { result: outcome.result } : { error: outcome.error }
   }
@@ -62,7 +62,7 @@ export async function action({
   if (intent === 'save') {
     try {
       const result = JSON.parse(String(formData.get('result'))) as ImportResult
-      const { applyImport } = await import('../../dashboard/store.server')
+      const { applyImport } = await import('../../server/store.server')
       return { saved: applyImport(result) }
     } catch {
       return { error: 'saveFailed' }
@@ -513,8 +513,8 @@ export default function SmartImport() {
                         </Badge>
                       </div>
                       <Text variant='small' className='mt-0.5'>
-                        {project.city}, {project.country} · {tt('currencyLabel')}
-                        : {project.currency}
+                        {project.city}, {project.country} ·{' '}
+                        {tt('currencyLabel')}: {project.currency}
                       </Text>
                     </div>
                     <Text as='span' variant='muted'>
@@ -526,19 +526,19 @@ export default function SmartImport() {
                     <table className='w-full min-w-140 text-sm'>
                       <thead>
                         <tr className='text-start text-xs text-gray-400'>
-                          <th className='px-4 py-2.5 font-medium'>
+                          <th className='px-4 py-2.5 font-medium text-start'>
                             {tt('colUnit')}
                           </th>
-                          <th className='px-4 py-2.5 font-medium'>
+                          <th className='px-4 py-2.5 font-medium text-start'>
                             {tt('colRooms')}
                           </th>
-                          <th className='px-4 py-2.5 font-medium'>
+                          <th className='px-4 py-2.5 font-medium text-start'>
                             {tt('colSqm')}
                           </th>
-                          <th className='px-4 py-2.5 font-medium'>
+                          <th className='px-4 py-2.5 font-medium text-start'>
                             {tt('impColPrice')}
                           </th>
-                          <th className='px-4 py-2.5 font-medium'>
+                          <th className='px-4 py-2.5 font-medium text-start'>
                             {tt('impColChange')}
                           </th>
                         </tr>

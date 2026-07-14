@@ -5,11 +5,21 @@ import {
   Outlet,
   Scripts,
   ScrollRestoration,
+  useRouteLoaderData,
 } from 'react-router'
 
 import type { Route } from './+types/root'
 import './app.css'
-import { LocaleProvider } from './i18n/locale'
+import { LocaleProvider, LOCALE_COOKIE, useLocale } from './i18n/locale'
+import type { Locale } from './types'
+
+export function loader({ request }: Route.LoaderArgs) {
+  // קריאת העדפת השפה מה-cookie כדי לרנדר בשרת בשפה הנכונה (בלי פליק)
+  const match = new RegExp(`(?:^|;\\s*)${LOCALE_COOKIE}=(he|en)`).exec(
+    request.headers.get('Cookie') ?? '',
+  )
+  return { locale: (match?.[1] ?? 'en') as Locale }
+}
 
 export const links: Route.LinksFunction = () => [
   { rel: 'preconnect', href: 'https://fonts.googleapis.com' },
@@ -25,8 +35,20 @@ export const links: Route.LinksFunction = () => [
 ]
 
 export function Layout({ children }: { children: React.ReactNode }) {
+  // ה-Layout מרונדר גם ב-ErrorBoundary, אז ייתכן שאין נתוני loader — נופלים לאנגלית
+  const data = useRouteLoaderData<typeof loader>('root')
   return (
-    <html lang='he' dir='rtl'>
+    <LocaleProvider initialLocale={data?.locale}>
+      <Document>{children}</Document>
+    </LocaleProvider>
+  )
+}
+
+/* קומפוננטה פנימית כדי ש-<html lang/dir> יגיעו מה-context (הפרובידר חייב להיות מעליה) */
+function Document({ children }: { children: React.ReactNode }) {
+  const { locale, dir } = useLocale()
+  return (
+    <html lang={locale} dir={dir}>
       <head>
         <meta charSet='utf-8' />
         <meta name='viewport' content='width=device-width, initial-scale=1' />
@@ -43,11 +65,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
 }
 
 export default function App() {
-  return (
-    <LocaleProvider>
-      <Outlet />
-    </LocaleProvider>
-  )
+  return <Outlet />
 }
 
 export function ErrorBoundary({ error }: Route.ErrorBoundaryProps) {

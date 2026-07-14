@@ -14,6 +14,7 @@ import {
   Heading,
   IconButton,
   Input,
+  Modal,
   Price,
   Select,
   Text,
@@ -169,9 +170,9 @@ function HeroSearchPanel({
 }
 
 const HERO_AVATARS = [
-  { imgUrl: 'public/dd.avif' },
-  { imgUrl: 'public/IMG_7359.jpg' },
-  { imgUrl: 'public/ff.avif' },
+  { imgUrl: 'app/assets/demoAvatars/dd.avif' },
+  { imgUrl: 'app/assets/demoAvatars/IMG_7359.jpg' },
+  { imgUrl: 'app/assets/demoAvatars/ff.avif' },
 ] as const
 
 /** בלוב צבע מטושטש שמרחף ברקע ה-hero */
@@ -202,6 +203,18 @@ export function Listings() {
   const [category, setCategory] = useState<CategoryFilter>('all')
   const [dealType, setDealType] = useState<DealType | 'all'>('all')
   const [query, setQuery] = useState('')
+
+  /* השוואת דירות (פרק 3.1) - עד 4 נכסים. */
+  const [compareIds, setCompareIds] = useState<string[]>([])
+  const [compareOpen, setCompareOpen] = useState(false)
+  const toggleCompare = (id: string) =>
+    setCompareIds((prev) =>
+      prev.includes(id)
+        ? prev.filter((x) => x !== id)
+        : prev.length >= 4
+          ? prev
+          : [...prev, id],
+    )
 
   const filtered = useMemo(
     () =>
@@ -491,7 +504,12 @@ export function Listings() {
             >
               <AnimatePresence mode='popLayout'>
                 {filtered.map((l) => (
-                  <ListingCard key={l.id} listing={l} />
+                  <ListingCard
+                    key={l.id}
+                    listing={l}
+                    compared={compareIds.includes(l.id)}
+                    onCompareToggle={toggleCompare}
+                  />
                 ))}
               </AnimatePresence>
             </motion.div>
@@ -530,7 +548,133 @@ export function Listings() {
         </section>
 
         <SiteFooter />
+
+        {/* ---------- סרגל השוואה צף (פרק 3.1) ---------- */}
+        <AnimatePresence>
+          {compareIds.length > 0 && (
+            <motion.div
+              initial={{ y: 80, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              exit={{ y: 80, opacity: 0 }}
+              className='fixed bottom-4 left-1/2 z-40 flex -translate-x-1/2 items-center gap-3 rounded-full bg-gray-900 px-5 py-2.5 text-white shadow-xl'
+            >
+              <span className='text-sm font-medium'>
+                {compareIds.length} {tt('compareSelected')}
+              </span>
+              <Button
+                size='sm'
+                variant='white'
+                disabled={compareIds.length < 2}
+                onClick={() => setCompareOpen(true)}
+              >
+                {tt('compareCta')}
+              </Button>
+              <button
+                type='button'
+                onClick={() => setCompareIds([])}
+                className='text-xs text-gray-300 transition hover:text-white'
+              >
+                {tt('compareClear')}
+              </button>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        <CompareModal
+          open={compareOpen}
+          onClose={() => setCompareOpen(false)}
+          ids={compareIds}
+        />
       </div>
     </MotionConfig>
+  )
+}
+
+/* ---------- מודל השוואת דירות (פרק 3.1) ---------- */
+
+function CompareModal({
+  open,
+  onClose,
+  ids,
+}: {
+  open: boolean
+  onClose: () => void
+  ids: string[]
+}) {
+  const { t, tt } = useLocale()
+  const items = LISTINGS.filter((l) => ids.includes(l.id))
+
+  const rows: {
+    label: string
+    render: (l: (typeof items)[number]) => React.ReactNode
+  }[] = [
+    {
+      label: tt('colPrice'),
+      render: (l) => (
+        <span className='font-bold text-gray-900'>
+          <Price value={l.price.amount} currency={l.price.currency} />
+        </span>
+      ),
+    },
+    {
+      label: tt('comparePerSqm'),
+      render: (l) => Math.round(l.price.amount / l.sqm).toLocaleString(),
+    },
+    { label: tt('colRooms'), render: (l) => l.rooms },
+    { label: tt('colSqm'), render: (l) => l.sqm },
+    { label: tt('compareFloor'), render: (l) => l.floor ?? '—' },
+    { label: tt('compareCity'), render: (l) => l.address.city },
+    {
+      label: tt('compareDealType'),
+      render: (l) => (l.dealType === 'sale' ? tt('forSale') : tt('forRent')),
+    },
+    {
+      label: tt('compareFeatures'),
+      render: (l) =>
+        l.features
+          .slice(0, 4)
+          .map((f) => t(f))
+          .join(' · ') || '—',
+    },
+  ]
+
+  return (
+    <Modal open={open} onClose={onClose} title={tt('compareTitle')}>
+      <div className='overflow-x-auto'>
+        <table className='w-full text-sm'>
+          <thead>
+            <tr>
+              <th className='w-28 px-2 py-2' />
+              {items.map((l) => (
+                <th key={l.id} className='px-2 py-2 text-start align-top'>
+                  <img
+                    src={l.images[0]?.url}
+                    alt={t(l.title)}
+                    className='mb-2 h-20 w-full rounded-lg object-cover'
+                  />
+                  <TextLink href={`/property/${l.id}`} className='text-sm'>
+                    {t(l.title)}
+                  </TextLink>
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((row) => (
+              <tr key={row.label} className='border-t border-gray-100'>
+                <td className='px-2 py-2.5 text-xs font-medium text-gray-400'>
+                  {row.label}
+                </td>
+                {items.map((l) => (
+                  <td key={l.id} className='px-2 py-2.5 text-gray-700'>
+                    {row.render(l)}
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </Modal>
   )
 }

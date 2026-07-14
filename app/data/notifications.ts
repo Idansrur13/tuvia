@@ -20,7 +20,7 @@ export const NOTIFICATIONS: Notification[] = [
     event: 'reservation.requested',
     title: 'בקשת שריון חדשה',
     body: 'דוד אברהם ביקש לשריין את Unit 142',
-    href: '/dashboard/projects',
+    href: '/dashboard',
     read: false,
     createdAt: '2026-07-06T11:00:00Z',
   },
@@ -30,7 +30,8 @@ export const NOTIFICATIONS: Notification[] = [
     event: 'document.new',
     title: 'מסמך חדש לחתימה',
     body: 'אישור זמין לחתימה דיגיטלית',
-    href: '/dashboard/documents',
+    /* עמוד מסמכים טרם מומש — מפנים לדשבורד */
+    href: '/dashboard',
     read: false,
     createdAt: '2026-07-01T09:00:00Z',
   },
@@ -40,7 +41,8 @@ export const NOTIFICATIONS: Notification[] = [
     event: 'payment.due',
     title: 'תזכורת תשלום',
     body: 'תשלום 2/4 לתשלום עד 01.08',
-    href: '/dashboard/payments',
+    /* עמוד תשלומים טרם מומש — מפנים לדשבורד */
+    href: '/dashboard',
     read: true,
     createdAt: '2026-07-05T09:00:00Z',
   },
