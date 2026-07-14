@@ -7,7 +7,6 @@ import {
   Button,
   Card,
   Chip,
-  Drawer,
   EmptyState,
   Field,
   Heading,
@@ -20,10 +19,21 @@ import {
   Select,
   StatCard,
   Text,
-  TextLink,
   ToggleGroup,
   cn,
 } from '../../components/ui'
+import {
+  HeatDot,
+  HeatOptions,
+  LeadDrawer,
+  OverdueBadge,
+  ScoreBar,
+  StageOptions,
+  isNewThisWeek,
+  isOpen,
+  isOverdue,
+  userName,
+} from '../../components/leads/lead-drawer'
 
 import {
   AlarmClockIcon,
@@ -32,27 +42,27 @@ import {
   FunnelIcon,
   KanbanIcon,
   MailIcon,
-  PhoneIcon,
   PlusIcon,
   TableIcon,
   XIcon,
 } from 'lucide-react'
-import type { Invite, Lead, LeadHeat, LeadSource, LeadStage } from '~/types'
+import type {
+  Invite,
+  Lead,
+  LeadHeat,
+  LeadSource,
+  LeadStage,
+  Project,
+} from '~/types'
 import {
   COUNTRIES,
-  INVITES,
-  LEADS,
-  LEAD_ACTIVITY_META,
-  LEAD_HEAT_META,
   LEAD_SOURCE_META,
   LEAD_STAGES,
   LEAD_STAGE_META,
-  PROJECTS,
-  USERS,
   accessWindowEnd,
   formatMoney,
-  projectById,
 } from '~/data'
+import { getInvites, getLeads, getProjects } from '~/server/queries.server'
 import { useLocale } from '~/i18n/locale'
 import type { DictKey } from '~/i18n/dictionary'
 
@@ -61,6 +71,16 @@ const CURRENT_USER_ID = 'u-yossi'
 
 export function meta({}: Route.MetaArgs) {
   return [{ title: 'לידים והזמנות | Leads' }]
+}
+
+export async function loader() {
+  // טוענים את כל הלידים — הסינון והעימוד נעשים בצד הלקוח
+  const [leads, invites, projects] = await Promise.all([
+    getLeads(),
+    getInvites(),
+    getProjects(),
+  ])
+  return { leads, invites, projects }
 }
 
 /* ---------- סינון, מיון ותצוגות שמורות ---------- */
@@ -93,260 +113,13 @@ const SORT_LABEL: Record<SortKey, DictKey> = {
   name: 'sortName',
 }
 
-const isOpen = (l: Lead) => l.stage !== 'won' && l.stage !== 'lost'
-
-const isOverdue = (l: Lead) =>
-  isOpen(l) && !!l.nextFollowUpAt && l.nextFollowUpAt < new Date().toISOString()
-
-const isNewThisWeek = (l: Lead) =>
-  Date.now() - Date.parse(l.createdAt) < 7 * 86_400_000
-
-const userName = (id?: string) => USERS.find((u) => u.id === id)?.name
-
-/* ---------- אבני בניין ---------- */
-
-function StageOptions() {
-  const { t } = useLocale()
-  return (
-    <>
-      {LEAD_STAGES.map((s) => (
-        <option key={s} value={s}>
-          {t(LEAD_STAGE_META[s].label)}
-        </option>
-      ))}
-    </>
-  )
-}
-
-function HeatOptions() {
-  const { t } = useLocale()
-  return (
-    <>
-      {(Object.keys(LEAD_HEAT_META) as LeadHeat[]).map((h) => (
-        <option key={h} value={h}>
-          {t(LEAD_HEAT_META[h].label)}
-        </option>
-      ))}
-    </>
-  )
-}
-
-function HeatDot({ heat, withLabel }: { heat: LeadHeat; withLabel?: boolean }) {
-  const { t } = useLocale()
-  const meta = LEAD_HEAT_META[heat]
-  return (
-    <span className='inline-flex items-center gap-1.5'>
-      <span className={cn('h-2 w-2 rounded-full', meta.dot)} />
-      {withLabel && (
-        <span className={cn('text-xs font-medium', meta.text)}>
-          {t(meta.label)}
-        </span>
-      )}
-    </span>
-  )
-}
-
-function ScoreBar({ score }: { score: number }) {
-  return (
-    <span className='inline-flex items-center gap-2'>
-      <span className='h-1.5 w-10 overflow-hidden rounded-full bg-gray-100'>
-        <span
-          className={cn(
-            'block h-full rounded-full',
-            score >= 75
-              ? 'bg-success-500'
-              : score >= 45
-                ? 'bg-warning-500'
-                : 'bg-gray-300',
-          )}
-          style={{ width: `${score}%` }}
-        />
-      </span>
-      <span className='text-xs font-semibold text-gray-600'>{score}</span>
-    </span>
-  )
-}
-
-function OverdueBadge() {
-  const { tt } = useLocale()
-  return (
-    <Badge variant='danger'>
-      <AlarmClockIcon className='h-3 w-3' />
-      {tt('overdueBadge')}
-    </Badge>
-  )
-}
-
-/* ---------- פאנל צד: פרטי ליד + יומן פעילות ---------- */
-
-function LeadDrawer({
-  lead,
-  onClose,
-  onChangeStage,
-  onChangeHeat,
-  onSetFollowUp,
-
-  onAddNote,
-}: {
-  lead: Lead
-  onClose: () => void
-  onChangeStage: (s: LeadStage) => void
-  onChangeHeat: (h: LeadHeat) => void
-  onSetFollowUp: (iso?: string) => void
-  onAddNote: (text: string) => void
-}) {
-  const { t, tt, locale, formatDate, formatTime } = useLocale()
-  const [note, setNote] = useState('')
-  const project = projectById(lead.projectId ?? '')
-  const flag = lead.countryCode ? COUNTRIES[lead.countryCode]?.flag : undefined
-
-  const activities = [...lead.activities].sort((a, b) =>
-    b.at.localeCompare(a.at),
-  )
-
-  return (
-    <Drawer
-      onClose={onClose}
-      closeLabel={tt('imgClose')}
-      header={
-        <>
-          <div className='flex items-center gap-2'>
-            <Heading level={2} size='md'>
-              {lead.name}
-            </Heading>
-            {flag && <span className='text-lg leading-none'>{flag}</span>}
-            {isOverdue(lead) && <OverdueBadge />}
-          </div>
-          <Text as='p' variant='small' className='mt-0.5'>
-            {t(LEAD_SOURCE_META[lead.source].label)}
-            {project && ` · ${t(project.name)}`}
-            {lead.assignedToId && ` · ${userName(lead.assignedToId)}`}
-          </Text>
-        </>
-      }
-    >
-      {/* יצירת קשר + תקציב */}
-      <div className='flex flex-wrap items-center gap-2'>
-        {lead.phone && (
-          <TextLink variant='pill' href={`tel:${lead.phone}`} dir='ltr'>
-            <PhoneIcon className='h-3.5 w-3.5' />
-            {lead.phone}
-          </TextLink>
-        )}
-        {lead.email && (
-          <TextLink variant='pill' href={`mailto:${lead.email}`} dir='ltr'>
-            <MailIcon className='h-3.5 w-3.5' />
-            {lead.email}
-          </TextLink>
-        )}
-        {lead.budget && (
-          <span className='ms-auto text-sm font-bold text-gray-900'>
-            {formatMoney(lead.budget, locale)}
-            <Text as='span' variant='small' className='font-normal'>
-              {' '}
-              {tt('budget')}
-            </Text>
-          </span>
-        )}
-      </div>
-
-      {/* עריכה מהירה */}
-      <div className='grid grid-cols-2 gap-3'>
-        <Field label={tt('colStage')}>
-          <Select
-            value={lead.stage}
-            onChange={(e) => onChangeStage(e.target.value as LeadStage)}
-          >
-            <StageOptions />
-          </Select>
-        </Field>
-        <Field label={tt('colHeat')}>
-          <Select
-            value={lead.heat}
-            onChange={(e) => onChangeHeat(e.target.value as LeadHeat)}
-          >
-            <HeatOptions />
-          </Select>
-        </Field>
-        <Field label={tt('followUpDate')} className='col-span-2'>
-          <Input
-            type='date'
-            value={lead.nextFollowUpAt?.slice(0, 10) ?? ''}
-            onChange={(e) =>
-              onSetFollowUp(
-                e.target.value ? `${e.target.value}T09:00:00Z` : undefined,
-              )
-            }
-          />
-        </Field>
-      </div>
-
-      {/* ניקוד */}
-      <div className='flex items-center justify-between rounded-xl bg-gray-50 px-3.5 py-2.5'>
-        <Text as='span' variant='small'>
-          {tt('colScore')}
-        </Text>
-        <ScoreBar score={lead.score} />
-      </div>
-
-      {/* יומן פעילות */}
-      <div>
-        <Heading level={3} size='md'>
-          {tt('activityLog')}
-        </Heading>
-
-        <form
-          className='mt-2 flex gap-2'
-          onSubmit={(e) => {
-            e.preventDefault()
-            if (!note.trim()) return
-            onAddNote(note.trim())
-            setNote('')
-          }}
-        >
-          <Input
-            value={note}
-            onChange={(e) => setNote(e.target.value)}
-            placeholder={tt('addNotePh')}
-          />
-          <Button type='submit' size='sm' disabled={!note.trim()}>
-            {tt('addNoteBtn')}
-          </Button>
-        </form>
-
-        <ol className='mt-3 space-y-3 border-s-2 border-gray-100 ps-4'>
-          {activities.map((a) => (
-            <li key={a.id} className='relative'>
-              <span className='absolute -inset-s-5.25 top-1.5 h-2.5 w-2.5 rounded-full border-2 border-white bg-primary-400' />
-              <div className='flex items-baseline justify-between gap-2'>
-                <span className='text-xs font-semibold text-gray-700'>
-                  {t(LEAD_ACTIVITY_META[a.kind].label)}
-                  {a.kind === 'stageChange' && a.toStage && (
-                    <> → {t(LEAD_STAGE_META[a.toStage].label)}</>
-                  )}
-                </span>
-                <span className='shrink-0 text-[11px] text-gray-400' dir='ltr'>
-                  {formatDate(a.at)} {formatTime(a.at)}
-                </span>
-              </div>
-              <Text as='p' variant='small' className='mt-0.5'>
-                {a.summary}
-                {userName(a.byUserId) && ` — ${userName(a.byUserId)}`}
-              </Text>
-            </li>
-          ))}
-        </ol>
-      </div>
-    </Drawer>
-  )
-}
-
 /* ---------- העמוד ---------- */
 
-export default function ContractorLeads() {
+export default function ContractorLeads({ loaderData }: Route.ComponentProps) {
   const { t, tt, locale, formatDate } = useLocale()
-  const [leads, setLeads] = useState(LEADS)
-  const [invites, setInvites] = useState(INVITES)
+  const { projects } = loaderData
+  const [leads, setLeads] = useState(loaderData.leads)
+  const [invites, setInvites] = useState(loaderData.invites)
   const [inviteOpen, setInviteOpen] = useState(false)
   const [inviteSent, setInviteSent] = useState(false)
   const [invitesExpanded, setInvitesExpanded] = useState(false)
@@ -462,26 +235,6 @@ export default function ContractorLeads() {
           summary: `${t(LEAD_STAGE_META[lead.stage].label)} → ${t(LEAD_STAGE_META[stage].label)}`,
           fromStage: lead.stage,
           toStage: stage,
-        },
-      ],
-    })
-  }
-
-  const addNote = (id: string, text: string) => {
-    const lead = leads.find((l) => l.id === id)
-    if (!lead) return
-    const now = new Date().toISOString()
-    patchLead(id, {
-      lastActivityAt: now,
-      updatedAt: now,
-      activities: [
-        ...lead.activities,
-        {
-          id: `act-${Date.now()}`,
-          at: now,
-          kind: 'note',
-          byUserId: CURRENT_USER_ID,
-          summary: text,
         },
       ],
     })
@@ -728,7 +481,7 @@ export default function ContractorLeads() {
               </thead>
               <tbody>
                 {paged.map((lead) => {
-                  const project = projectById(lead.projectId ?? '')
+                  const project = projects.find((p) => p.id === lead.projectId)
                   const flag = lead.countryCode
                     ? COUNTRIES[lead.countryCode]?.flag
                     : undefined
@@ -929,6 +682,7 @@ export default function ContractorLeads() {
               <InviteRow
                 key={invite.id}
                 invite={invite}
+                project={projects.find((p) => p.id === invite.projectId)}
                 onRenew={(id) =>
                   /* חידוש גישה ל-3 חודשים - רק המתווך/הקבלן (פרק 4.1) */
                   setInvites((prev) =>
@@ -957,13 +711,9 @@ export default function ContractorLeads() {
         {selectedLead && (
           <LeadDrawer
             lead={selectedLead}
+            currentUserId={CURRENT_USER_ID}
             onClose={() => setSelectedId(null)}
-            onChangeStage={(s) => changeStage(selectedLead.id, s)}
-            onChangeHeat={(h) => patchLead(selectedLead.id, { heat: h })}
-            onSetFollowUp={(iso) =>
-              patchLead(selectedLead.id, { nextFollowUpAt: iso })
-            }
-            onAddNote={(text) => addNote(selectedLead.id, text)}
+            onUpdate={(patch) => patchLead(selectedLead.id, patch)}
           />
         )}
       </AnimatePresence>
@@ -1000,8 +750,8 @@ export default function ContractorLeads() {
           </Field>
 
           <Field label={tt('assignProject')}>
-            <Select name='project' defaultValue={PROJECTS[0].id}>
-              {PROJECTS.map((p) => (
+            <Select name='project' defaultValue={projects[0]?.id}>
+              {projects.map((p) => (
                 <option key={p.id} value={p.id}>
                   {t(p.name)} — {p.address.city}
                 </option>
@@ -1022,13 +772,14 @@ export default function ContractorLeads() {
 
 function InviteRow({
   invite,
+  project,
   onRenew,
 }: {
   invite: Invite
+  project: Project | undefined
   onRenew: (id: string) => void
 }) {
   const { t, tt, formatDate } = useLocale()
-  const project = projectById(invite.projectId ?? '')
 
   return (
     <li className='flex flex-wrap items-center gap-x-4 gap-y-1 px-4 py-3'>
@@ -1056,7 +807,11 @@ function InviteRow({
       {invite.status === 'blocked' ? (
         <>
           <Badge variant='neutral'>{tt('accessBlockedBadge')}</Badge>
-          <Button size='sm' variant='outline' onClick={() => onRenew(invite.id)}>
+          <Button
+            size='sm'
+            variant='outline'
+            onClick={() => onRenew(invite.id)}
+          >
             {tt('renewAccess')}
           </Button>
         </>

@@ -5,8 +5,7 @@
  * ואינדיקציית חלון 3 החודשים (פרק 4.1).
  * המלאי המלא + בקשות שריון נמצאים בעמוד "מלאי קבלנים" (inventory).
  */
-import { useState } from 'react'
-import { Link, useNavigate } from 'react-router'
+import { Link, useLocation, useNavigate } from 'react-router'
 import type { Route } from './+types/portfolio'
 import {
   BriefcaseIcon,
@@ -24,30 +23,28 @@ import {
   Button,
   Card,
   EmptyState,
-  Field,
   Heading,
-  Input,
-  Modal,
   PageHeader,
   StatCard,
   Text,
 } from '../../../components/ui'
 import {
-  DEALS,
   DEAL_STAGE_META,
-  LISTINGS,
-  RESERVATIONS,
   UNIT_STATUS_META,
-  VIEWINGS,
   accessWindowEnd,
   formatMoney,
   isWithinWindow,
-  projectById,
-  unitById,
-  userById,
 } from '~/data'
+import type { Deal, Project, Reservation, Unit, User, Viewing } from '~/types'
+import {
+  getDeals,
+  getListings,
+  getProjects,
+  getReservations,
+  getUsers,
+  viewingsFor,
+} from '~/server/queries.server'
 import { useLocale } from '~/i18n/locale'
-import { route } from '@react-router/dev/routes'
 
 /** המוכרת המחוברת (עד שיהיה auth אמיתי). */
 const CURRENT_SELLER_ID = 'u-michal'
@@ -56,21 +53,39 @@ export function meta({}: Route.MetaArgs) {
   return [{ title: 'תיק הנכסים | Portfolio' }]
 }
 
-export default function SellerPortfolio() {
-  const { t, tt, locale, formatDate } = useLocale()
-  const navigate = useNavigate()
+/* שורה בטבלת התיק — הצירופים נבנים ב-loader (join מינימלי בצד השרת). */
+interface PortfolioRow {
+  unit: Unit
+  reservation?: Reservation
+  deal?: Deal
+  project?: Project
+  client?: User
+  nextViewing?: Viewing
+}
 
-  /* יחידה שנבחרה לפרסום מודעה (null = המודל סגור) + הודעת הצלחה. */
-  const [adUnit, setAdUnit] = useState<ReturnType<typeof unitById>>(undefined)
-  const [adPublished, setAdPublished] = useState(false)
+export async function loader() {
+  const [projects, reservations, deals, users, viewings, listings] =
+    await Promise.all([
+      getProjects(),
+      getReservations(),
+      getDeals(),
+      getUsers(),
+      viewingsFor(CURRENT_SELLER_ID),
+      getListings(),
+    ])
 
   /* שריונים שלי (מבוקשים/מאושרים) - הבסיס לתיק. */
-  const myReservations = RESERVATIONS.filter(
+  const myReservations = reservations.filter(
     (r) =>
       r.sellerId === CURRENT_SELLER_ID &&
       (r.status === 'requested' || r.status === 'approved'),
   )
-  const myDeals = DEALS.filter((d) => d.sellerId === CURRENT_SELLER_ID)
+  const myDeals = deals.filter((d) => d.sellerId === CURRENT_SELLER_ID)
+
+  const unitsById = new Map(
+    projects.flatMap((p) => p.units.map((u) => [u.id, u] as const)),
+  )
+  const usersById = new Map(users.map((u) => [u.id, u]))
 
   /* יחידות בתיק = שריונים שלי + יחידות עם עסקה פעילה שלי. */
   const unitIds = [
@@ -80,35 +95,40 @@ export default function SellerPortfolio() {
     ]),
   ]
 
-  const portfolioRows = unitIds
-    .map((unitId) => {
-      const unit = unitById(unitId)
-      if (!unit) return null
-      const reservation = myReservations.find((r) => r.unitId === unitId)
-      const deal = myDeals.find((d) => d.unitId === unitId)
-      const project = projectById(
-        reservation?.projectId ?? deal?.projectId ?? '',
-      )
-      const client = userById(deal?.clientId ?? reservation?.clientId)
-      const nextViewing = VIEWINGS.find(
-        (v) =>
-          v.sellerId === CURRENT_SELLER_ID &&
-          v.unitId === unitId &&
-          (v.status === 'scheduled' || v.status === 'confirmed'),
-      )
-      return { unit, reservation, deal, project, client, nextViewing }
-    })
-    .filter(Boolean) as {
-    unit: NonNullable<ReturnType<typeof unitById>>
-    reservation?: (typeof RESERVATIONS)[number]
-    deal?: (typeof DEALS)[number]
-    project?: ReturnType<typeof projectById>
-    client?: ReturnType<typeof userById>
-    nextViewing?: (typeof VIEWINGS)[number]
-  }[]
+  const portfolioRows: PortfolioRow[] = unitIds.flatMap((unitId) => {
+    const unit = unitsById.get(unitId)
+    if (!unit) return []
+    const reservation = myReservations.find((r) => r.unitId === unitId)
+    const deal = myDeals.find((d) => d.unitId === unitId)
+    const project = projects.find(
+      (p) => p.id === (reservation?.projectId ?? deal?.projectId),
+    )
+    const client = usersById.get(deal?.clientId ?? reservation?.clientId ?? '')
+    const nextViewing = viewings.find(
+      (v) =>
+        v.unitId === unitId &&
+        (v.status === 'scheduled' || v.status === 'confirmed'),
+    )
+    return [{ unit, reservation, deal, project, client, nextViewing }]
+  })
 
-  /* נכסים עצמאיים שהמתווך משווק. */
-  const myListings = LISTINGS.filter((l) => l.agentId === CURRENT_SELLER_ID)
+  return {
+    portfolioRows,
+    myReservations,
+    myDeals,
+    /* נכסים עצמאיים שהמתווך משווק. */
+    myListings: listings.filter((l) => l.agentId === CURRENT_SELLER_ID),
+  }
+}
+
+export default function SellerPortfolio({ loaderData }: Route.ComponentProps) {
+  const { t, tt, locale, formatDate } = useLocale()
+  const navigate = useNavigate()
+
+  /* באנר הצלחה אחרי פרסום מודעה בעמוד "מודעה חדשה" (מגיע ב-location.state). */
+  const adPublished = Boolean(useLocation().state?.adPublished)
+
+  const { portfolioRows, myReservations, myDeals, myListings } = loaderData
 
   /* KPIs (פרק 6). */
   const openDeals = myDeals.filter((d) => d.stage !== 'contractSigned')
@@ -305,9 +325,12 @@ export default function SellerPortfolio() {
                           {/* stopPropagation — שהקליק לא יפעיל ניווט של השורה */}
                           <Button
                             size='sm'
+
                             onClick={(e) => {
                               e.stopPropagation()
-                              setAdUnit(unit)
+                              navigate(
+                                `/dashboard/seller/listing/new?unit=${unit.id}`,
+                              )
                             }}
                           >
                             <MegaphoneIcon className='h-3.5 w-3.5' />
@@ -335,7 +358,7 @@ export default function SellerPortfolio() {
           {myListings.map((listing) => (
             <li key={listing.id}>
               <Link
-                to={`/dashboard/seller/property/${listing.id}`}
+                to={`/dashboard/property/${listing.id}`}
                 className='flex items-center gap-3 px-4 py-3 transition hover:bg-gray-50/70'
               >
                 <img
@@ -377,65 +400,6 @@ export default function SellerPortfolio() {
           )}
         </ul>
       </Card>
-
-      {/* ---------- מודל פרסום מודעה (פרק 6) ---------- */}
-      <Modal
-        open={adUnit !== undefined}
-        onClose={() => setAdUnit(undefined)}
-        title={tt('adModalTitle')}
-      >
-        <form
-          className='space-y-4'
-          onSubmit={(e) => {
-            e.preventDefault()
-            /* אין עדיין backend — סוגרים ומציגים אישור */
-            setAdUnit(undefined)
-            setAdPublished(true)
-          }}
-        >
-          <Text as='p' variant='small'>
-            {tt('adModalHint')}
-          </Text>
-
-          <Field label={tt('adTitleLabel')}>
-            <Input
-              name='title'
-              required
-              defaultValue={adUnit?.name}
-              placeholder={tt('adTitlePlaceholder')}
-            />
-          </Field>
-
-          <Field label={`${tt('adPriceLabel')} (${adUnit?.price.currency ?? 'ILS'})`}>
-            <Input
-              name='price'
-              type='number'
-              min={0}
-              required
-              defaultValue={adUnit?.price.amount}
-            />
-          </Field>
-
-          <Field label={tt('adDescLabel')}>
-            <textarea
-              name='description'
-              rows={3}
-              placeholder={tt('adDescPlaceholder')}
-              className='w-full resize-none rounded-xl border border-gray-200 bg-white px-2 py-2 text-sm text-gray-900 outline-none transition placeholder:text-gray-400 focus:border-primary-400 focus:ring-2 focus:ring-primary-100'
-            />
-          </Field>
-
-          <div className='flex justify-end gap-2 pt-2'>
-            <Button variant='ghost' onClick={() => setAdUnit(undefined)}>
-              {tt('cancel')}
-            </Button>
-            <Button type='submit'>
-              <MegaphoneIcon className='h-4 w-4' />
-              {tt('adPublish')}
-            </Button>
-          </div>
-        </form>
-      </Modal>
     </div>
   )
 }

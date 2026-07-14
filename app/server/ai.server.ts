@@ -101,8 +101,8 @@ async function fileToContentBlock(file: File): Promise<ContentBlock> {
 
 /* ---------- הקריאה למודל ---------- */
 
-function buildSystemPrompt() {
-  const existing = getProjects().map((p) => ({
+async function buildSystemPrompt() {
+  const existing = (await getProjects()).map((p) => ({
     id: p.id,
     name: p.name.he,
     city: p.address.city,
@@ -160,7 +160,7 @@ export async function parseFileWithAi(file: File): Promise<AiImportOutcome> {
       model: 'claude-opus-4-8',
       max_tokens: 16000,
       thinking: { type: 'adaptive' },
-      system: buildSystemPrompt(),
+      system: await buildSystemPrompt(),
       messages: [
         {
           role: 'user',
@@ -183,7 +183,7 @@ export async function parseFileWithAi(file: File): Promise<AiImportOutcome> {
     if (!response.parsed_output)
       return { ok: false, error: 'המודל לא החזיר נתונים תקינים. נסו שוב.' }
 
-    return { ok: true, result: annotateChanges(response.parsed_output) }
+    return { ok: true, result: await annotateChanges(response.parsed_output) }
   } catch (error) {
     if (error instanceof Anthropic.AuthenticationError)
       return {
@@ -213,8 +213,8 @@ export async function parseFileWithAi(file: File): Promise<AiImportOutcome> {
  * ה-AI מחזיר נתונים מנורמלים; את סיווג השינויים (חדש / עדכון מחיר / נמכר)
  * אנחנו מחשבים כאן באופן דטרמיניסטי מול המאגר לא סומכים על המודל בזה.
  */
-function annotateChanges(ai: z.infer<typeof AiImportSchema>): ImportResult {
-  const stored = getProjects()
+async function annotateChanges(ai: z.infer<typeof AiImportSchema>): Promise<ImportResult> {
+  const stored = await getProjects()
   const summary = {
     newProjects: 0,
     newUnits: 0,

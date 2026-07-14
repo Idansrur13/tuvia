@@ -12,8 +12,9 @@ import {
 import { Button, Heading, Text, cn } from '../components/ui'
 import { Header } from '~/components/premisions/header'
 import { SiteFooter } from '../components/site-footer'
-import { formatMoney, listingById } from '~/data'
-import type { AiRecommendation, Locale } from '~/types'
+import { formatMoney } from '~/data'
+import { getListings } from '~/server/queries.server'
+import type { AiRecommendation, Listing, Locale } from '~/types'
 import { useLocale } from '~/i18n/locale'
 import type { DictKey } from '~/i18n/dictionary'
 import type {
@@ -30,6 +31,14 @@ export function meta({}: Route.MetaArgs) {
         'שוחחו עם נדלנומטר, הבוט החכם - הוא ימצא נכסים מתאימים וימליץ על הסביבה.',
     },
   ]
+}
+
+/* ---------- Loader ---------- */
+
+/** טוען את מאגר הנכסים כדי להציג את כרטיסי ההמלצות של הבוט */
+export async function loader({}: Route.LoaderArgs) {
+  const listings = await getListings()
+  return { listings }
 }
 
 /* ---------- Action ---------- */
@@ -84,9 +93,15 @@ function BotAvatar() {
 }
 
 /** כרטיס המלצה — נכס מהמאגר עם ציון התאמה ונימוק. */
-function RecommendationCard({ rec }: { rec: AiRecommendation }) {
+function RecommendationCard({
+  rec,
+  listings,
+}: {
+  rec: AiRecommendation
+  listings: Listing[]
+}) {
   const { t, tt, locale } = useLocale()
-  const listing = listingById(rec.listingId)
+  const listing = listings.find((l) => l.id === rec.listingId)
   if (!listing) return null
 
   return (
@@ -147,7 +162,7 @@ function RecommendationCard({ rec }: { rec: AiRecommendation }) {
   )
 }
 
-function Message({ msg }: { msg: UiMessage }) {
+function Message({ msg, listings }: { msg: UiMessage; listings: Listing[] }) {
   const mine = msg.role === 'user'
   return (
     <motion.div
@@ -171,7 +186,11 @@ function Message({ msg }: { msg: UiMessage }) {
         {msg.recommendations && msg.recommendations.length > 0 && (
           <div className='mt-2 space-y-2'>
             {msg.recommendations.map((rec) => (
-              <RecommendationCard key={rec.listingId} rec={rec} />
+              <RecommendationCard
+                key={rec.listingId}
+                rec={rec}
+                listings={listings}
+              />
             ))}
           </div>
         )}
@@ -209,7 +228,8 @@ function Thinking() {
 
 /* ---------- העמוד ---------- */
 
-export default function AssistantPage() {
+export default function AssistantPage({ loaderData }: Route.ComponentProps) {
+  const { listings } = loaderData
   const { tt, locale } = useLocale()
   const fetcher = useFetcher<typeof action>()
   const [messages, setMessages] = useState<UiMessage[]>([])
@@ -313,10 +333,11 @@ export default function AssistantPage() {
                 role: 'assistant',
                 content: tt('aiGreeting'),
               }}
+              listings={listings}
             />
 
             {messages.map((m) => (
-              <Message key={m.id} msg={m} />
+              <Message key={m.id} msg={m} listings={listings} />
             ))}
 
             <AnimatePresence>{loading && <Thinking />}</AnimatePresence>

@@ -36,19 +36,20 @@ import {
   Text,
 } from '../../components/ui'
 import {
-  LEADS,
   LEAD_HEAT_META,
   LEAD_STAGE_META,
   UNIT_STATUS_META,
-  USERS,
-  VIEWINGS,
   VIEWING_STATUS_META,
   formatMoney,
-  leadById,
+} from '~/data'
+import {
+  getLeads,
   listingById,
   projectById,
-} from '~/data'
-import type { Lead, Listing, Project, Unit } from '~/types'
+  userById,
+  viewingsFor,
+} from '~/server/queries.server'
+import type { Lead, Listing, Project, Unit, Viewing } from '~/types'
 import { useLocale } from '~/i18n/locale'
 
 export function meta({}: Route.MetaArgs) {
@@ -56,18 +57,28 @@ export function meta({}: Route.MetaArgs) {
 }
 
 export async function loader({ params }: Route.LoaderArgs) {
-  const listing = listingById(params.id) ?? null
-  const project = listing?.projectId
-    ? (projectById(listing.projectId) ?? null)
-    : null
-  return { listing, project }
+  const listing = (await listingById(params.id)) ?? null
+  const [project, agent, allLeads, viewings] = await Promise.all([
+    listing?.projectId ? projectById(listing.projectId) : undefined,
+    listing?.agentId ? userById(listing.agentId) : undefined,
+    getLeads(),
+    // הסיורים של המתווך האחראי — מסוננים לנכס בצד הלקוח
+    listing?.agentId ? viewingsFor(listing.agentId) : [],
+  ])
+  return {
+    listing,
+    project: project ?? null,
+    agent: agent ?? null,
+    leads: allLeads,
+    viewings,
+  }
 }
 
 type DashRole = 'contractor' | 'seller'
 
 /** לידים שמתעניינים בנכס — לפי היחידה או הפרויקט המקושרים. */
-const leadsForListing = (listing: Listing): Lead[] =>
-  LEADS.filter(
+const leadsForListing = (listing: Listing, allLeads: Lead[]): Lead[] =>
+  allLeads.filter(
     (l) =>
       (listing.unitId && l.unitId === listing.unitId) ||
       (listing.projectId && l.projectId === listing.projectId),
@@ -334,11 +345,19 @@ function ContractorPanel({
 
 /* ---------- פאנל מתווך ---------- */
 
-function SellerPanel({ listing }: { listing: Listing }) {
+function SellerPanel({
+  listing,
+  allViewings,
+  allLeads,
+}: {
+  listing: Listing
+  allViewings: Viewing[]
+  allLeads: Lead[]
+}) {
   const { t, tt, locale, formatDate, formatTime } = useLocale()
   const [copied, setCopied] = useState(false)
 
-  const viewings = VIEWINGS.filter(
+  const viewings = allViewings.filter(
     (v) =>
       v.listingId === listing.id ||
       (listing.unitId && v.unitId === listing.unitId),
@@ -413,7 +432,7 @@ function SellerPanel({ listing }: { listing: Listing }) {
         ) : (
           <ul className='divide-y divide-gray-50'>
             {viewings.map((v) => {
-              const lead = leadById(v.leadId)
+              const lead = allLeads.find((l) => l.id === v.leadId)
               return (
                 <li key={v.id} className='flex items-center gap-3 p-3'>
                   <div className='min-w-0 flex-1'>
@@ -444,7 +463,7 @@ export default function DashboardProperty({
   loaderData,
 }: Route.ComponentProps) {
   const { t, tt, locale } = useLocale()
-  const { listing, project } = loaderData
+  const { listing, project, agent, leads: allLeads, viewings } = loaderData
 
   /* התפקיד נשמר ע"י פריסת הדשבורד — עד שיחובר auth. */
   const [role, setRole] = useState<DashRole>('contractor')
@@ -463,11 +482,10 @@ export default function DashboardProperty({
     )
   }
 
-  const agent = USERS.find((u) => u.id === listing.agentId)
   const perSqm = listing.sqm
     ? Math.round(listing.price.amount / listing.sqm)
     : 0
-  const leads = leadsForListing(listing)
+  const leads = leadsForListing(listing, allLeads)
 
   return (
     <div className='space-y-6'>
@@ -600,7 +618,11 @@ export default function DashboardProperty({
           {role === 'contractor' ? (
             <ContractorPanel listing={listing} project={project} />
           ) : (
-            <SellerPanel listing={listing} />
+            <SellerPanel
+              listing={listing}
+              allViewings={viewings}
+              allLeads={allLeads}
+            />
           )}
         </div>
       </div>

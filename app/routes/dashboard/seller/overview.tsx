@@ -22,20 +22,16 @@ import {
   Text,
   cn,
 } from '../../../components/ui'
-import type { Viewing } from '~/types'
+import type { Lead, Listing, Unit, Viewing } from '~/types'
+import { UNIT_STATUS_META, VIEWING_STATUS_META, formatMoney } from '~/data'
 import {
-  DEALS,
-  LEADS,
-  PROJECTS,
-  RESERVATIONS,
-  UNIT_STATUS_META,
-  VIEWING_STATUS_META,
-  formatMoney,
-  leadById,
-  listingById,
-  unitById,
+  getDeals,
+  getLeads,
+  getListings,
+  getProjects,
+  getReservations,
   viewingsFor,
-} from '~/data'
+} from '~/server/queries.server'
 import { useLocale } from '~/i18n/locale'
 
 /** המוכרת המחוברת (עד שיהיה auth אמיתי). */
@@ -44,6 +40,42 @@ const SELLER_NAME = 'מיכל'
 
 export function meta({}: Route.MetaArgs) {
   return [{ title: 'סקירת סוכן | Seller Overview' }]
+}
+
+export async function loader() {
+  /* שליפה מקבילה של כל מה שהעמוד צריך + בניית מפות lookup בצד השרת */
+  const [projects, reservations, deals, leads, viewings, listings] =
+    await Promise.all([
+      getProjects(),
+      getReservations(),
+      getDeals(),
+      getLeads(),
+      viewingsFor(CURRENT_SELLER_ID),
+      getListings(),
+    ])
+
+  const leadsById: Record<string, Lead> = Object.fromEntries(
+    leads.map((l) => [l.id, l]),
+  )
+  const listingsById: Record<string, Listing> = Object.fromEntries(
+    listings.map((l) => [l.id, l]),
+  )
+  const unitsById: Record<string, Unit> = Object.fromEntries(
+    projects.flatMap((p) => p.units.map((u) => [u.id, u])),
+  )
+
+  return {
+    projects,
+    myReservations: reservations.filter(
+      (r) => r.sellerId === CURRENT_SELLER_ID,
+    ),
+    myDeals: deals.filter((d) => d.sellerId === CURRENT_SELLER_ID),
+    myLeads: leads.filter((l) => l.assignedToId === CURRENT_SELLER_ID),
+    myViewings: viewings,
+    leadsById,
+    listingsById,
+    unitsById,
+  }
 }
 
 const sameDay = (iso: string, ref: Date) =>
@@ -59,11 +91,18 @@ interface FeedItem {
   icon: typeof TagIcon
 }
 
-function ViewingRow({ viewing }: { viewing: Viewing }) {
+function ViewingRow({
+  viewing,
+  lead,
+  unit,
+  listing,
+}: {
+  viewing: Viewing
+  lead?: Lead
+  unit?: Unit
+  listing?: Listing
+}) {
   const { t, tt, formatTime } = useLocale()
-  const lead = leadById(viewing.leadId)
-  const unit = viewing.unitId ? unitById(viewing.unitId) : undefined
-  const listing = viewing.listingId ? listingById(viewing.listingId) : undefined
   const propertyName = unit?.name ?? (listing ? t(listing.title) : '—')
   const meta = VIEWING_STATUS_META[viewing.status]
 
@@ -103,11 +142,20 @@ function ViewingRow({ viewing }: { viewing: Viewing }) {
   )
 }
 
-export default function SellerOverview() {
+export default function SellerOverview({ loaderData }: Route.ComponentProps) {
   const { t, tt, locale, formatDate } = useLocale()
   const now = new Date()
 
-  const myViewings = viewingsFor(CURRENT_SELLER_ID)
+  const {
+    projects,
+    myReservations,
+    myDeals,
+    myViewings,
+    leadsById,
+    listingsById,
+    unitsById,
+  } = loaderData
+
   const todayViewings = myViewings.filter(
     (v) =>
       sameDay(v.scheduledAt, now) &&
@@ -116,13 +164,9 @@ export default function SellerOverview() {
       v.status !== 'noShow',
   )
 
-  const myLeads = LEADS.filter(
-    (l) =>
-      l.assignedToId === CURRENT_SELLER_ID &&
-      l.stage !== 'won' &&
-      l.stage !== 'lost',
+  const myLeads = loaderData.myLeads.filter(
+    (l) => l.stage !== 'won' && l.stage !== 'lost',
   )
-  const myDeals = DEALS.filter((d) => d.sellerId === CURRENT_SELLER_ID)
   const openDeals = myDeals.filter((d) => d.stage !== 'contractSigned')
   const expectedCommission = openDeals.reduce(
     (sum, d) => sum + (d.commission?.amount ?? 0),
@@ -134,7 +178,7 @@ export default function SellerOverview() {
   const feed = useMemo<FeedItem[]>(() => {
     const items: FeedItem[] = []
 
-    for (const project of PROJECTS) {
+    for (const project of projects) {
       for (const unit of project.units) {
         const change = unit.priceHistory?.at(-1)
         if (change) {
@@ -163,15 +207,13 @@ export default function SellerOverview() {
       }
     }
 
-    for (const res of RESERVATIONS.filter(
-      (r) => r.sellerId === CURRENT_SELLER_ID,
-    )) {
-      const unit = unitById(res.unitId)
+    for (const res of myReservations) {
+      const unit = unitsById[res.unitId]
       items.push({
         id: `res-${res.id}`,
         at: res.updatedAt,
         title: `${res.status === 'approved' ? tt('resApproved') : tt('resPending')} · ${unit?.name ?? res.unitId}`,
-        desc: t(PROJECTS.find((p) => p.id === res.projectId)?.name),
+        desc: t(projects.find((p) => p.id === res.projectId)?.name),
         tone: res.status === 'approved' ? 'success' : 'primary',
         icon: HandshakeIcon,
       })
@@ -246,7 +288,13 @@ export default function SellerOverview() {
           ) : (
             <ul className='divide-y divide-gray-50'>
               {todayViewings.map((v) => (
-                <ViewingRow key={v.id} viewing={v} />
+                <ViewingRow
+                  key={v.id}
+                  viewing={v}
+                  lead={leadsById[v.leadId]}
+                  unit={v.unitId ? unitsById[v.unitId] : undefined}
+                  listing={v.listingId ? listingsById[v.listingId] : undefined}
+                />
               ))}
             </ul>
           )}

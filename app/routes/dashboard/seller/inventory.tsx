@@ -4,6 +4,7 @@
  * לתיק הנכסים של המתווך (portfolio).
  */
 import { useMemo, useState } from 'react'
+import type { Route } from './+types/inventory'
 import {
   BuildingIcon,
   CheckCircle2Icon,
@@ -21,7 +22,8 @@ import {
   Text,
 } from '../../../components/ui'
 import type { Reservation, Unit } from '~/types'
-import { PROJECTS, RESERVATIONS, UNIT_STATUS_META, formatMoney } from '~/data'
+import { UNIT_STATUS_META, formatMoney } from '~/data'
+import { getProjects, getReservations } from '~/server/queries.server'
 import { useLocale } from '~/i18n/locale'
 
 /** המוכרת המחוברת (עד שיהיה auth אמיתי). */
@@ -31,14 +33,24 @@ export function meta() {
   return [{ title: 'מלאי קבלנים | Contractor Inventory' }]
 }
 
-export default function SellerInventory() {
+export async function loader() {
+  const [projects, reservations] = await Promise.all([
+    getProjects(),
+    getReservations(),
+  ])
+  return { projects, reservations }
+}
+
+export default function SellerInventory({ loaderData }: Route.ComponentProps) {
   const { t, tt, locale, formatDate } = useLocale()
 
   /* שריונים — מקומי כדי לאפשר בקשות חדשות בדמו */
-  const [reservations, setReservations] = useState<Reservation[]>(RESERVATIONS)
+  const [reservations, setReservations] = useState<Reservation[]>(
+    loaderData.reservations,
+  )
   const [flash, setFlash] = useState(false)
 
-  const published = PROJECTS.filter((p) => p.status === 'published')
+  const published = loaderData.projects.filter((p) => p.status === 'published')
   const rows = useMemo(
     () =>
       published.flatMap((project) =>

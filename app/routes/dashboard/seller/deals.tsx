@@ -16,19 +16,16 @@ import {
   Text,
   cn,
 } from '../../../components/ui'
-import type { Deal, DealStage } from '~/types'
+import type { Deal, DealStage, PaymentApproval, Project, Unit, User } from '~/types'
 import {
-  DEALS,
   DEAL_STAGE_META,
-  PAYMENT_APPROVALS,
   PAYMENT_APPROVAL_META,
-  PROJECTS,
   accessWindowEnd,
   formatMoney,
   isWithinWindow,
-  unitById,
-  userById,
 } from '~/data'
+import { getDeals, getProjects, getUsers } from '~/server/queries.server'
+import { db } from '~/server/db.server'
 import { useLocale } from '~/i18n/locale'
 
 /** המוכרת המחוברת (עד שיהיה auth אמיתי). */
@@ -38,13 +35,54 @@ export function meta({}: Route.MetaArgs) {
   return [{ title: 'עסקאות ועמלות | Deals' }]
 }
 
+export async function loader() {
+  const [deals, users, projects, approvalRows] = await Promise.all([
+    getDeals(),
+    getUsers(),
+    getProjects(),
+    /* אין עדיין פונקציית שאילתה ייעודית לאישורי תשלום — שולפים ישירות וממפים לטיפוס הדומיין */
+    db.paymentApproval.findMany({ orderBy: { createdAt: 'asc' } }),
+  ])
+
+  const paymentApprovals: PaymentApproval[] = approvalRows.map((r) => ({
+    id: r.id,
+    dealId: r.dealId,
+    paymentId: r.paymentId ?? undefined,
+    amount: { amount: r.amount, currency: r.currency },
+    requestedById: r.requestedById,
+    status: r.status,
+    contractorApprovedAt: r.contractorApprovedAt?.toISOString(),
+    adminConfirmedAt: r.adminConfirmedAt?.toISOString(),
+    confirmationRef: r.confirmationRef ?? undefined,
+    createdAt: r.createdAt.toISOString(),
+    updatedAt: r.updatedAt.toISOString(),
+  }))
+
+  const usersById: Record<string, User> = Object.fromEntries(
+    users.map((u) => [u.id, u]),
+  )
+  const unitsById: Record<string, Unit> = Object.fromEntries(
+    projects.flatMap((p) => p.units.map((u) => [u.id, u])),
+  )
+  const projectsById: Record<string, Project> = Object.fromEntries(
+    projects.map((p) => [p.id, p]),
+  )
+
+  return {
+    myDeals: deals.filter((d) => d.sellerId === CURRENT_SELLER_ID),
+    paymentApprovals,
+    usersById,
+    unitsById,
+    projectsById,
+  }
+}
+
 const DEAL_STAGES = Object.keys(DEAL_STAGE_META) as DealStage[]
 
-export default function SellerDeals() {
+export default function SellerDeals({ loaderData }: Route.ComponentProps) {
   const { t, tt, locale, formatDate } = useLocale()
-  const [deals, setDeals] = useState<Deal[]>(() =>
-    DEALS.filter((d) => d.sellerId === CURRENT_SELLER_ID),
-  )
+  const { paymentApprovals, usersById, unitsById, projectsById } = loaderData
+  const [deals, setDeals] = useState<Deal[]>(loaderData.myDeals)
 
   /* עסקה "פתוחה" = עוד לא נחתם חוזה (פרק 16.1). */
   const openDeals = deals.filter((d) => d.stage !== 'contractSigned')
@@ -148,9 +186,11 @@ export default function SellerDeals() {
             </thead>
             <tbody>
               {deals.map((deal) => {
-                const client = userById(deal.clientId)
-                const unit = unitById(deal.unitId)
-                const project = PROJECTS.find((p) => p.id === deal.projectId)
+                const client = deal.clientId
+                  ? usersById[deal.clientId]
+                  : undefined
+                const unit = unitsById[deal.unitId]
+                const project = projectsById[deal.projectId]
                 const paidCount = deal.payments.filter(
                   (p) => p.status === 'paid',
                 ).length
@@ -277,12 +317,12 @@ export default function SellerDeals() {
           </Text>
         </div>
         <ul className='divide-y divide-gray-50'>
-          {PAYMENT_APPROVALS.filter((a) =>
+          {paymentApprovals.filter((a) =>
             deals.some((d) => d.id === a.dealId),
           ).map((approval) => {
             const meta = PAYMENT_APPROVAL_META[approval.status]
             const deal = deals.find((d) => d.id === approval.dealId)
-            const client = userById(deal?.clientId)
+            const client = deal?.clientId ? usersById[deal.clientId] : undefined
             return (
               <li
                 key={approval.id}

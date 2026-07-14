@@ -42,16 +42,16 @@ import {
   Share2Icon,
   XIcon,
 } from 'lucide-react'
+import { LISTING_CATEGORIES } from '~/data'
 import {
-  LISTING_CATEGORIES,
-  USERS,
   listingById,
   organizationById,
   projectById,
   sameProjectListings,
   similarListings,
-} from '~/data'
-import type { Listing, MediaAsset } from '~/types'
+  userById,
+} from '~/server/queries.server'
+import type { Listing, MediaAsset, Organization, User } from '~/types'
 import { useLocale } from '~/i18n/locale'
 import LogIn from '~/components/premisions/logIn'
 import { Header } from '~/components/premisions/header'
@@ -73,15 +73,25 @@ export function meta({ matches }: Route.MetaArgs) {
 }
 
 export async function loader({ params }: Route.LoaderArgs) {
-  const listing = listingById(params.id)
+  const listing = await listingById(params.id)
   if (!listing) throw data('הנכס לא נמצא', { status: 404 })
 
-  const fromProject = sameProjectListings(listing)
-  const similar = similarListings(
+  const fromProject = await sameProjectListings(listing)
+  const similar = await similarListings(
     listing,
     fromProject.map((l) => l.id),
   )
-  return { listing, fromProject, similar }
+
+  // נתוני צד — פרויקט, סוכן וארגון (לאנונימיות קבלנים) נטענים בשרת
+  const project = listing.projectId
+    ? await projectById(listing.projectId)
+    : undefined
+  const agent = await userById(listing.agentId)
+  const organization = agent?.organizationId
+    ? await organizationById(agent.organizationId)
+    : undefined
+
+  return { listing, fromProject, similar, project, agent, organization }
 }
 
 /* ---------- קומפוננטות משנה ---------- */
@@ -155,16 +165,23 @@ function Lightbox({
   )
 }
 
-function ContactCard({ listing }: { listing: Listing }) {
+function ContactCard({
+  listing,
+  agent,
+  organization,
+}: {
+  listing: Listing
+  agent?: User
+  organization?: Organization
+}) {
   const { tt } = useLocale()
   const [sent, setSent] = useState(false)
-  const agent = USERS.find((u) => u.id === listing.agentId)
   /*
    * אנונימיות קבלנים (פרק 17): באזור הציבורי קבלן מוצג כמספר/כינוי
    * בלבד, ללא שם וללא טלפון ישיר. הקשר נוצר דרך השארת ליד.
    */
   const isContractor = listing.agentRole === 'contractor'
-  const contractorAlias = organizationById(agent?.organizationId)?.alias
+  const contractorAlias = organization?.alias
   const agentName = isContractor
     ? `${tt('roleContractor')} ${contractorAlias ?? ''}`.trim()
     : (agent?.name ?? tt('roleAgent'))
@@ -308,8 +325,8 @@ function ListingsRow({
 
 export default function PropertyPage({ loaderData }: Route.ComponentProps) {
   const { t, tt } = useLocale()
-  const { listing, fromProject, similar } = loaderData
-  const project = listing.projectId ? projectById(listing.projectId) : undefined
+  const { listing, fromProject, similar, project, agent, organization } =
+    loaderData
   const projectName = project ? t(project.name) : ''
   const [lightbox, setLightbox] = useState<number | null>(null)
   const [liked, setLiked] = useState(false)
@@ -629,7 +646,11 @@ export default function PropertyPage({ loaderData }: Route.ComponentProps) {
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.5, delay: 0.2 }}
             >
-              <ContactCard listing={listing} />
+              <ContactCard
+                listing={listing}
+                agent={agent}
+                organization={organization}
+              />
             </motion.aside>
           </div>
 

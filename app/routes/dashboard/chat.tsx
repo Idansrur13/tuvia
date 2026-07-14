@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { useFetcher } from 'react-router'
 import type { Route } from './+types/chat'
 import {
   ArrowRightIcon,
@@ -13,6 +14,7 @@ import {
   PaperclipIcon,
   PlusIcon,
   SendIcon,
+  UserPlusIcon,
   UsersIcon,
   XIcon,
 } from 'lucide-react'
@@ -34,20 +36,79 @@ import type {
   Role,
   User,
 } from '~/types'
+import { unreadCount } from '~/data'
 import {
-  CONVERSATIONS,
-  MESSAGES,
-  USERS,
-  dealById,
-  leadById,
-  unitById,
-  unreadCount,
-} from '~/data'
+  addParticipant,
+  getChatData,
+  getContextNames,
+  markConversationRead,
+  sendMessage,
+  startDirectConversation,
+} from '~/server/chat.server'
+import { getUsers, userById as dbUserById } from '~/server/queries.server'
 import { useLocale } from '~/i18n/locale'
 import type { DictKey } from '~/i18n/dictionary'
 
 export function meta({}: Route.MetaArgs) {
   return [{ title: 'צ׳אט | Chat' }]
+}
+
+/* ---------- Loader ---------- */
+
+export async function loader({}: Route.LoaderArgs) {
+  const [users, chat, ctxNames] = await Promise.all([
+    getUsers(),
+    getChatData(),
+    getContextNames(),
+  ])
+  return { users, ...chat, ctxNames }
+}
+
+/* ---------- Action ---------- */
+
+export async function action({ request }: Route.ActionArgs) {
+  const fd = await request.formData()
+  const intent = fd.get('intent')
+
+  switch (intent) {
+    case 'send': {
+      await sendMessage({
+        conversationId: String(fd.get('conversationId')),
+        senderId: String(fd.get('senderId')),
+        body: String(fd.get('body') ?? ''),
+        attachments: JSON.parse(String(fd.get('attachments') ?? '[]')),
+      })
+      return { ok: true }
+    }
+    case 'markRead': {
+      await markConversationRead(
+        String(fd.get('conversationId')),
+        String(fd.get('userId')),
+      )
+      return { ok: true }
+    }
+    case 'start': {
+      const [by, withUser] = await Promise.all([
+        dbUserById(String(fd.get('byUserId'))),
+        dbUserById(String(fd.get('withUserId'))),
+      ])
+      if (!by || !withUser) return { error: 'user not found' }
+      const conversationId = await startDirectConversation(by, withUser)
+      return { conversationId }
+    }
+    case 'addParticipant': {
+      const user = await dbUserById(String(fd.get('userId')))
+      if (!user) return { error: 'user not found' }
+      await addParticipant({
+        conversationId: String(fd.get('conversationId')),
+        userId: user.id,
+        role: user.role,
+        addedById: String(fd.get('addedById')),
+      })
+      return { ok: true }
+    }
+  }
+  return { error: 'unknown intent' }
 }
 
 /* ---------- תפקידים ---------- */
@@ -82,48 +143,49 @@ const CHAT_MATRIX: Record<Role, Role[]> = {
   admin: ['client', 'contractor', 'seller', 'admin'],
 }
 
-/** המשתמשים הזמינים למתג "מחובר/ת בתור" — אחד מכל תפקיד + עוד. */
-const VIEW_AS_IDS = ['u-yossi', 'u-michal', 'u-ron', 'u-admin']
-
-const userById = (id: string) => USERS.find((u) => u.id === id)
-
 /* ---------- הקשר השיחה ---------- */
+
+type ContextNames = {
+  units: Record<string, string>
+  leads: Record<string, string>
+  deals: Record<string, string>
+}
 
 function contextInfo(
   ctx: ConversationContext,
   tt: (k: DictKey) => string,
+  names: ContextNames,
 ): { label: string; Icon: typeof BuildingIcon } | null {
   switch (ctx.type) {
-    case 'unit': {
-      const unit = unitById(ctx.unitId)
+    case 'unit':
       return {
-        label: `${tt('chatCtxUnit')} · ${unit?.name ?? ctx.unitId}`,
+        label: `${tt('chatCtxUnit')} · ${names.units[ctx.unitId] ?? ctx.unitId}`,
         Icon: BuildingIcon,
       }
-    }
-    case 'deal': {
-      const deal = dealById(ctx.dealId)
-      const unit = deal ? unitById(deal.unitId) : undefined
+    case 'deal':
       return {
-        label: `${tt('chatCtxDeal')} · ${unit?.name ?? ctx.dealId}`,
+        label: `${tt('chatCtxDeal')} · ${names.deals[ctx.dealId] ?? ctx.dealId}`,
         Icon: FileTextIcon,
       }
-    }
-    case 'lead': {
-      const lead = leadById(ctx.leadId)
+    case 'lead':
       return {
-        label: `${tt('chatCtxLead')} · ${lead?.name ?? ctx.leadId}`,
+        label: `${tt('chatCtxLead')} · ${names.leads[ctx.leadId] ?? ctx.leadId}`,
         Icon: FunnelIcon,
       }
-    }
     case 'direct':
       return null
   }
 }
 
-function ContextChip({ ctx }: { ctx: ConversationContext }) {
+function ContextChip({
+  ctx,
+  names,
+}: {
+  ctx: ConversationContext
+  names: ContextNames
+}) {
   const { tt } = useLocale()
-  const info = contextInfo(ctx, tt)
+  const info = contextInfo(ctx, tt, names)
   if (!info) return null
   const { label, Icon } = info
   return (
@@ -192,13 +254,16 @@ function MessageBubble({
   msg,
   mine,
   showSender,
+  sender,
+  names,
 }: {
   msg: ChatMessage
   mine: boolean
   showSender: boolean
+  sender?: User
+  names: ContextNames
 }) {
   const { formatTime } = useLocale()
-  const sender = userById(msg.senderId)
 
   return (
     <div className={cn('flex', mine ? 'justify-end' : 'justify-start')}>
@@ -235,7 +300,7 @@ function MessageBubble({
 
         {msg.linkedEntity && msg.linkedEntity.type !== 'direct' && (
           <div className={cn('mt-1.5', mine && 'opacity-90')}>
-            <ContextChip ctx={msg.linkedEntity} />
+            <ContextChip ctx={msg.linkedEntity} names={names} />
           </div>
         )}
 
@@ -255,55 +320,34 @@ function MessageBubble({
   )
 }
 
-function TypingBubble({ name }: { name: string }) {
-  const { tt } = useLocale()
-  return (
-    <div className='flex justify-start'>
-      <div className='flex items-center gap-2 rounded-2xl rounded-es-sm border border-gray-100 bg-white px-3.5 py-2.5 shadow-sm'>
-        <span className='flex gap-1'>
-          {[0, 1, 2].map((i) => (
-            <span
-              key={i}
-              className='h-1.5 w-1.5 animate-bounce rounded-full bg-gray-400'
-              style={{ animationDelay: `${i * 150}ms` }}
-            />
-          ))}
-        </span>
-        <Text as='span' variant='small'>
-          {name} {tt('chatTyping')}
-        </Text>
-      </div>
-    </div>
-  )
-}
-
 /* ---------- העמוד ---------- */
 
-export default function ChatPage() {
+export default function ChatPage({ loaderData }: Route.ComponentProps) {
   const { t, tt, formatTime } = useLocale()
+  const { users, conversations, messages, ctxNames } = loaderData
+
+  const userById = (id: string) => users.find((u) => u.id === id)
 
   /* "מחובר/ת בתור" — עד שיהיה auth אמיתי */
-  const [currentUserId, setCurrentUserId] = useState('u-yossi')
-  const currentUser = userById(currentUserId)!
+  const [currentUserId] = useState('u-yossi')
+  const currentUser = userById(currentUserId) ?? users[0]
 
-  const [conversations, setConversations] = useState<Conversation[]>(() =>
-    structuredClone(CONVERSATIONS),
-  )
-  const [messages, setMessages] = useState<ChatMessage[]>(() =>
-    structuredClone(MESSAGES),
-  )
   const [selectedId, setSelectedId] = useState<string | null>(null)
-  const selectedRef = useRef<string | null>(null)
 
   const [query, setQuery] = useState('')
   const [filter, setFilter] = useState<'all' | 'unread'>('all')
   const [draft, setDraft] = useState('')
   const [attachment, setAttachment] = useState<MediaAsset | null>(null)
-  const [typingUserId, setTypingUserId] = useState<string | null>(null)
   const [newChatOpen, setNewChatOpen] = useState(false)
+  const [addOpen, setAddOpen] = useState(false)
 
   const fileRef = useRef<HTMLInputElement>(null)
   const bottomRef = useRef<HTMLDivElement>(null)
+
+  const sendFetcher = useFetcher()
+  const readFetcher = useFetcher()
+  const startFetcher = useFetcher<{ conversationId?: string }>()
+  const addFetcher = useFetcher()
 
   /* ---------- נראוּת לפי תפקיד: אדמין רואה הכל, השאר רק שיחות שלהם ---------- */
   const visible = useMemo(() => {
@@ -344,115 +388,64 @@ export default function ChatPage() {
     [messages, selectedId],
   )
 
+  /* הודעה אופטימית בזמן שליחה */
+  const pending =
+    sendFetcher.state !== 'idle' &&
+    sendFetcher.formData?.get('intent') === 'send' &&
+    sendFetcher.formData.get('conversationId') === selectedId
+      ? {
+          body: String(sendFetcher.formData.get('body') ?? ''),
+          attachments: JSON.parse(
+            String(sendFetcher.formData.get('attachments') ?? '[]'),
+          ) as MediaAsset[],
+        }
+      : null
+
   /* משתתפים שאינם אני — לכותרת ולאווטארים */
   const others = (c: Conversation) =>
     c.participants.filter((p) => p.userId !== currentUserId)
 
   /* ---------- סימון כנקרא ---------- */
-  const markRead = (convId: string) =>
-    setConversations((prev) =>
-      prev.map((c) => {
-        if (c.id !== convId) return c
-        const last = messages
-          .filter((m) => m.conversationId === convId)
-          .sort((a, b) => a.createdAt.localeCompare(b.createdAt))
-          .at(-1)
-        if (!last) return c
-        return {
-          ...c,
-          participants: c.participants.map((p) =>
-            p.userId === currentUserId
-              ? { ...p, lastReadMessageId: last.id }
-              : p,
-          ),
-        }
-      }),
+  const markRead = (convId: string) => {
+    const conv = conversations.find((c) => c.id === convId)
+    if (!conv || unreadCount(messages, conv, currentUserId) === 0) return
+    readFetcher.submit(
+      { intent: 'markRead', conversationId: convId, userId: currentUserId },
+      { method: 'post' },
     )
+  }
 
   const selectConversation = (id: string) => {
     setSelectedId(id)
-    selectedRef.current = id
     markRead(id)
   }
 
-  /* החלפת "מחובר/ת בתור" מאפסת בחירה */
-  const switchUser = (id: string) => {
-    setCurrentUserId(id)
-    setSelectedId(null)
-    selectedRef.current = null
-    setTypingUserId(null)
-  }
+  /* בחירה אוטומטית של שיחה שנפתחה עכשיו */
+  useEffect(() => {
+    const id = startFetcher.data?.conversationId
+    if (id) setSelectedId(id)
+  }, [startFetcher.data])
 
   /* גלילה לתחתית עם כל הודעה חדשה */
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [selectedMessages.length, typingUserId])
+  }, [selectedMessages.length, pending])
 
-  /* ---------- שליחה + סימולציית מסירה ותגובה (עד שיהיה שרת אמיתי) ---------- */
-  const patchMessage = (id: string, patch: Partial<ChatMessage>) =>
-    setMessages((prev) =>
-      prev.map((m) => (m.id === id ? { ...m, ...patch } : m)),
-    )
-
-  const touchConversation = (convId: string, last: ChatMessage) =>
-    setConversations((prev) =>
-      prev.map((c) =>
-        c.id === convId
-          ? { ...c, lastMessage: last, updatedAt: last.createdAt }
-          : c,
-      ),
-    )
-
+  /* ---------- שליחה ---------- */
   const send = () => {
     if (!selected || (!draft.trim() && !attachment)) return
-    const now = new Date().toISOString()
-    const msg: ChatMessage = {
-      id: `msg-${Date.now()}`,
-      conversationId: selected.id,
-      senderId: currentUserId,
-      body: draft.trim(),
-      attachments: attachment ? [attachment] : undefined,
-      delivery: 'sending',
-      createdAt: now,
-    }
-    setMessages((prev) => [...prev, msg])
-    touchConversation(selected.id, msg)
+    sendFetcher.submit(
+      {
+        intent: 'send',
+        conversationId: selected.id,
+        senderId: currentUserId,
+        body: draft.trim(),
+        attachments: JSON.stringify(attachment ? [attachment] : []),
+      },
+      { method: 'post' },
+    )
     setDraft('')
     setAttachment(null)
-
-    const convId = selected.id
-    const replier = userById(others(selected)[0]?.userId ?? '')
-
-    setTimeout(() => patchMessage(msg.id, { delivery: 'sent' }), 350)
-    setTimeout(() => patchMessage(msg.id, { delivery: 'delivered' }), 1000)
-
-    if (!replier) return
-    setTimeout(() => setTypingUserId(replier.id), 1500)
-    setTimeout(() => {
-      setTypingUserId(null)
-      const replyBody = tt(
-        Math.random() > 0.5 ? 'chatDemoReply1' : 'chatDemoReply2',
-      )
-      const reply: ChatMessage = {
-        id: `msg-${Date.now()}-r`,
-        conversationId: convId,
-        senderId: replier.id,
-        body: replyBody,
-        delivery: 'sent',
-        createdAt: new Date().toISOString(),
-      }
-      setMessages((prev) => [
-        // התגובה "קוראת" את ההודעות שלי
-        ...prev.map((m) =>
-          m.conversationId === convId && m.senderId === currentUserId
-            ? { ...m, delivery: 'read' as const }
-            : m,
-        ),
-        reply,
-      ])
-      touchConversation(convId, reply)
-      if (selectedRef.current === convId) markRead(convId)
-    }, 3300)
   }
 
   const attachFile = (file: File | undefined) => {
@@ -466,7 +459,7 @@ export default function ChatPage() {
   }
 
   /* ---------- שיחה חדשה לפי מטריצת ההרשאות ---------- */
-  const allowedCounterparts = USERS.filter(
+  const allowedCounterparts = users.filter(
     (u) =>
       u.id !== currentUserId &&
       CHAT_MATRIX[currentUser.role].includes(u.role) &&
@@ -484,20 +477,34 @@ export default function ChatPage() {
     )
     if (existing) return selectConversation(existing.id)
 
-    const now = new Date().toISOString()
-    const conv: Conversation = {
-      id: `conv-${Date.now()}`,
-      context: { type: 'direct' },
-      isGroup: false,
-      participants: [
-        { userId: currentUserId, role: currentUser.role },
-        { userId: withUser.id, role: withUser.role },
-      ],
-      createdAt: now,
-      updatedAt: now,
-    }
-    setConversations((prev) => [conv, ...prev])
-    selectConversation(conv.id)
+    startFetcher.submit(
+      { intent: 'start', byUserId: currentUserId, withUserId: withUser.id },
+      { method: 'post' },
+    )
+  }
+
+  /* ---------- צירוף משתתף לשיחה קיימת ---------- */
+  const addableUsers = selected
+    ? users.filter(
+        (u) =>
+          u.status === 'active' &&
+          CHAT_MATRIX[currentUser.role].includes(u.role) &&
+          !selected.participants.some((p) => p.userId === u.id),
+      )
+    : []
+
+  const addToConversation = (user: User) => {
+    if (!selected) return
+    setAddOpen(false)
+    addFetcher.submit(
+      {
+        intent: 'addParticipant',
+        conversationId: selected.id,
+        userId: user.id,
+        addedById: currentUserId,
+      },
+      { method: 'post' },
+    )
   }
 
   /* ---------- רינדור ---------- */
@@ -629,7 +636,7 @@ export default function ChatPage() {
                           </span>
 
                           <span className='mt-1 flex flex-wrap items-center gap-1.5'>
-                            <ContextChip ctx={c.context} />
+                            <ContextChip ctx={c.context} names={ctxNames} />
                             {c.isGroup && (
                               <Badge variant='neutral'>{tt('chatGroup')}</Badge>
                             )}
@@ -674,10 +681,7 @@ export default function ChatPage() {
               <header className='flex items-center gap-3 border-b border-gray-100 bg-white px-4 py-3'>
                 <button
                   type='button'
-                  onClick={() => {
-                    setSelectedId(null)
-                    selectedRef.current = null
-                  }}
+                  onClick={() => setSelectedId(null)}
                   className='text-gray-400 transition hover:text-gray-700 md:hidden'
                 >
                   <ArrowRightIcon className='h-5 w-5 rtl:rotate-0 ltr:rotate-180' />
@@ -696,7 +700,7 @@ export default function ChatPage() {
                     {headerTitle}
                   </p>
                   <div className='mt-0.5 flex flex-wrap items-center gap-1.5'>
-                    <ContextChip ctx={selected.context} />
+                    <ContextChip ctx={selected.context} names={ctxNames} />
                     {others(selected).map((p) => {
                       const u = userById(p.userId)
                       if (!u) return null
@@ -708,11 +712,20 @@ export default function ChatPage() {
                     })}
                   </div>
                 </div>
+
+                <button
+                  type='button'
+                  onClick={() => setAddOpen(true)}
+                  aria-label={tt('chatAddParticipant')}
+                  className='flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-gray-400 transition hover:bg-gray-100 hover:text-primary-600'
+                >
+                  <UserPlusIcon className='h-5 w-5' />
+                </button>
               </header>
 
               {/* ההודעות */}
               <div className='min-h-0 flex-1 space-y-2 overflow-y-auto px-4 py-4'>
-                {selectedMessages.length === 0 && (
+                {selectedMessages.length === 0 && !pending && (
                   <div className='py-14 text-center'>
                     <MessageSquareIcon className='mx-auto h-8 w-8 text-gray-300' />
                     <Text as='p' variant='muted' className='mt-2'>
@@ -734,13 +747,30 @@ export default function ChatPage() {
                         msg={m}
                         mine={m.senderId === currentUserId}
                         showSender={selected.isGroup}
+                        sender={userById(m.senderId)}
+                        names={ctxNames}
                       />
                     </div>
                   )
                 })}
 
-                {typingUserId && (
-                  <TypingBubble name={userById(typingUserId)?.name ?? ''} />
+                {pending && (
+                  <MessageBubble
+                    msg={{
+                      id: 'pending',
+                      conversationId: selected.id,
+                      senderId: currentUserId,
+                      body: pending.body,
+                      attachments: pending.attachments.length
+                        ? pending.attachments
+                        : undefined,
+                      delivery: 'sending',
+                      createdAt: new Date().toISOString(),
+                    }}
+                    mine
+                    showSender={false}
+                    names={ctxNames}
+                  />
                 )}
                 <div ref={bottomRef} />
               </div>
@@ -827,6 +857,41 @@ export default function ChatPage() {
               <button
                 type='button'
                 onClick={() => startChat(u)}
+                className='flex w-full items-center gap-3 px-3 py-2.5 text-start transition hover:bg-gray-50'
+              >
+                <Avatar user={u} size='sm' />
+                <span className='min-w-0 flex-1'>
+                  <span className='block truncate text-sm font-semibold text-gray-900'>
+                    {u.name}
+                  </span>
+                  <span className='block truncate text-xs text-gray-500'>
+                    {u.email}
+                  </span>
+                </span>
+                <Badge variant={ROLE_META[u.role].badge}>
+                  {tt(ROLE_META[u.role].labelKey)}
+                </Badge>
+              </button>
+            </li>
+          ))}
+        </ul>
+      </Modal>
+
+      {/* ═══ צירוף משתתף ═══ */}
+      <Modal
+        open={addOpen}
+        onClose={() => setAddOpen(false)}
+        title={tt('chatAddParticipant')}
+      >
+        <Text variant='muted' className='mb-3'>
+          {tt('chatAddParticipantHint')}
+        </Text>
+        <ul className='divide-y divide-gray-50 overflow-hidden rounded-xl border border-gray-100'>
+          {addableUsers.map((u) => (
+            <li key={u.id}>
+              <button
+                type='button'
+                onClick={() => addToConversation(u)}
                 className='flex w-full items-center gap-3 px-3 py-2.5 text-start transition hover:bg-gray-50'
               >
                 <Avatar user={u} size='sm' />

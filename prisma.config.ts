@@ -9,6 +9,7 @@ export default defineConfig({
     path: "prisma/migrations",
   },
   datasource: {
-    url: process.env["DATABASE_URL"],
+    // ה-CLI (מיגרציות) חייב חיבור ישיר — ה-pooler (pgbouncer, פורט 6543) גורם לתקיעה.
+    url: process.env["DIRECT_URL"] ?? process.env["DATABASE_URL"],
   },
 });

@@ -35,8 +35,8 @@ import { SearchIcon, StarIcon } from 'lucide-react'
 
 import { ListingCard } from './listing-card'
 import LogIn from '~/components/premisions/logIn'
-import type { DealType, ListingCategory } from '~/types'
-import { DEAL_TYPES, IMG, LISTINGS, LISTING_CATEGORIES } from '~/data'
+import type { DealType, Listing, ListingCategory } from '~/types'
+import { DEAL_TYPES, IMG, LISTING_CATEGORIES } from '~/data'
 import { useLocale } from '~/i18n/locale'
 import { Header } from '~/components/premisions/header'
 
@@ -194,10 +194,8 @@ function FloatingBlob({
 }
 
 /* ---------- Page ---------- */
-function getListings() {
-  return LISTINGS
-}
-export function Listings() {
+/** מקבל את הנכסים מה-loader של הראוט (נטענים מבסיס הנתונים) */
+export function Listings({ listings }: { listings: Listing[] }) {
   const { t, tt } = useLocale()
 
   const [category, setCategory] = useState<CategoryFilter>('all')
@@ -218,7 +216,7 @@ export function Listings() {
 
   const filtered = useMemo(
     () =>
-      getListings().filter((l) => {
+      listings.filter((l) => {
         if (category !== 'all' && l.category !== category) return false
         if (dealType !== 'all' && l.dealType !== dealType) return false
         if (query) {
@@ -231,7 +229,7 @@ export function Listings() {
         }
         return true
       }),
-    [category, dealType, query],
+    [listings, category, dealType, query],
   )
 
   const handleHeroSearch = (
@@ -584,6 +582,7 @@ export function Listings() {
           open={compareOpen}
           onClose={() => setCompareOpen(false)}
           ids={compareIds}
+          listings={listings}
         />
       </div>
     </MotionConfig>
@@ -596,13 +595,15 @@ function CompareModal({
   open,
   onClose,
   ids,
+  listings,
 }: {
   open: boolean
   onClose: () => void
   ids: string[]
+  listings: Listing[]
 }) {
   const { t, tt } = useLocale()
-  const items = LISTINGS.filter((l) => ids.includes(l.id))
+  const items = listings.filter((l) => ids.includes(l.id))
 
   const rows: {
     label: string

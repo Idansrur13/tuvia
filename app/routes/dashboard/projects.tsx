@@ -22,7 +22,8 @@ import {
   PlusIcon,
   UsersIcon,
 } from 'lucide-react'
-import { PROJECTS, UNIT_STATUS_META, formatMoney } from '~/data'
+import { UNIT_STATUS_META, formatMoney } from '~/data'
+import { getProjects } from '~/server/queries.server'
 import type { Currency, MediaAsset, Project, UnitStatus } from '~/types'
 import { useLocale } from '~/i18n/locale'
 import { Link } from 'react-router'
@@ -32,8 +33,8 @@ export function meta({}: Route.MetaArgs) {
 }
 
 export async function loader() {
-  // הנתונים מגיעים מהמאגר בצד השרת — כולל פרויקטים שנוספו בייבוא החכם
-  return { projects: PROJECTS }
+  // הנתונים מגיעים מהמסד בצד השרת — כולל פרויקטים שנוספו בייבוא החכם
+  return { projects: await getProjects() }
 }
 
 const UNIT_STATUSES = Object.keys(UNIT_STATUS_META) as UnitStatus[]

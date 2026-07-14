@@ -1,17 +1,700 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Get a free hosted Postgres database in seconds: `npx create-db`
-
-// generator client {
-//   provider = "prisma-client"
-//   output   = "../generated/prisma"
-// }
+// סכמת הפלטפורמה — משקפת 1:1 את טיפוסי הדומיין ב-app/types/*.
+// מוסכמות מיפוי:
+//   Localized  → עמודת Json  ({ he, en })
+//   MediaAsset → עמודת Json  (או Json[] לגלריות)
+//   Money      → זוג עמודות amount + currency (מיון/סינון לפי מחיר)
+//   Address    → עמודות שטוחות: country(Json), city, neighborhood, street, lat, lng
+//   ISODate    → DateTime (ההמרה למחרוזת ISO נעשית בשכבת המיפוי)
 
 generator client {
-  provider = "prisma-client-js"
+  provider = "prisma-client"
+  output   = "../generated/prisma"
 }
 
 datasource db {
   provider = "postgresql"
+}
+
+/**
+ * ---------- enums ----------
+ */
+
+enum Currency {
+  ILS
+  EUR
+  USD
+  GBP
+  AED
+}
+
+enum Role {
+  client
+  contractor
+  seller
+  admin
+}
+
+enum UserStatus {
+  active
+  invited
+  suspended
+}
+
+enum OrganizationType {
+  contractor
+  agency
+}
+
+enum ProjectStatus {
+  draft
+  pending
+  published
+  archived
+}
+
+enum UnitStatus {
+  available
+  reserved
+  inProcess
+  sold
+}
+
+enum ReservationStatus {
+  requested
+  approved
+  rejected
+  expired
+}
+
+enum DealType {
+  sale
+  rent
+}
+
+enum ListingCategory {
+  apartments
+  penthouses
+  gardenApartments
+  houses
+  newFromContractor
+}
+
+enum ListingAvailability {
+  new
+  immediate
+  underConstruction
+}
+
+enum AgentRole {
+  contractor
+  seller
+}
+
+enum LeadStage {
+  new
+  contacted
+  meeting
+  negotiation
+  won
+  lost
+}
+
+enum LeadSource {
+  marketplace
+  aiAssistant
+  referral
+  campaign
+  manual
+}
+
+enum LeadHeat {
+  cold
+  warm
+  hot
+}
+
+enum LeadActivityKind {
+  call
+  message
+  meeting
+  note
+  stageChange
+}
+
+enum ViewingStatus {
+  scheduled
+  confirmed
+  completed
+  cancelled
+  noShow
+}
+
+enum InviteStatus {
+  pending
+  joined
+  expired
+  blocked
+}
+
+enum DealStage {
+  negotiation
+  memorandum
+  orderSent
+  orderSigned
+  orderPaid
+  contractSigned
+}
+
+enum DocumentKind {
+  contract
+  appendix
+  approval
+  receipt
+  other
+}
+
+enum DocumentStatus {
+  draft
+  pendingSignature
+  signed
+}
+
+enum PaymentStatus {
+  scheduled
+  due
+  paid
+  overdue
+}
+
+enum PaymentApprovalStatus {
+  requested
+  contractorApproved
+  adminConfirmed
+  rejected
+}
+
+enum ConversationContextType {
+  direct
+  unit
+  deal
+  lead
+}
+
+enum PartnerApplicationStatus {
+  pending
+  approved
+  rejected
+}
+
+/**
+ * ---------- משתמשים וארגונים ----------
+ */
+
+model Organization {
+  id       String           @id @default(cuid())
+  type     OrganizationType
+  name     String
+  alias    String?
+  logo     Json?
+  regions  String[]
+  verified Boolean          @default(false)
+
+  users    User[]
+  projects Project[]
+  deals    Deal[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model User {
+  id          String     @id @default(cuid())
+  role        Role
+  status      UserStatus @default(active)
+  name        String
+  email       String     @unique
+  phone       String?
+  avatar      Json?
+  locale      String     @default("en")
+  currency    Currency   @default(ILS)
+  timeZone    String?
+  permissions String[]
+
+  organizationId String?
+  organization   Organization? @relation(fields: [organizationId], references: [id])
+
+  lastActiveAt DateTime?
+
+  listings      Listing[]      @relation("ListingAgent")
+  assignedLeads Lead[]         @relation("LeadAssignee")
+  leadActivity  LeadActivity[] @relation("ActivityBy")
+  viewings      Viewing[]      @relation("ViewingSeller")
+  invitesSent   Invite[]       @relation("InviteBy")
+  purchases     Unit[]         @relation("UnitBuyer")
+  reservations  Reservation[]  @relation("ReservationSeller")
+  clientDeals   Deal[]         @relation("DealClient")
+  sellerDeals   Deal[]         @relation("DealSeller")
+
+  approvalRequests     PaymentApproval[]    @relation("ApprovalRequestedBy")
+  reviewedApplications PartnerApplication[] @relation("ApplicationReviewer")
+
+  conversations     ConversationParticipant[] @relation("ChatParticipant")
+  participantsAdded ConversationParticipant[] @relation("ParticipantAddedBy")
+  messagesSent      ChatMessage[]             @relation("MessageSender")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+/**
+ * ---------- פרויקטים ויחידות (מלאי קבלן) ----------
+ */
+
+model Project {
+  id     String        @id @default(cuid())
+  status ProjectStatus @default(draft)
+
+  name        Json
+  description Json?
+
+  country      Json
+  city         String
+  neighborhood String?
+  street       String?
+  lat          Float?
+  lng          Float?
+
+  cover   Json
+  gallery Json @default("[]")
+
+  contractorId String
+  contractor   Organization @relation(fields: [contractorId], references: [id])
+
+  units        Unit[]
+  reservations Reservation[]
+  leads        Lead[]
+  invites      Invite[]
+  deals        Deal[]
+  listings     Listing[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Unit {
+  id   String @id @default(cuid())
+  name String
+
+  rooms Float
+  sqm   Int
+  floor String?
+
+  priceAmount   Int
+  priceCurrency Currency
+  status        UnitStatus @default(available)
+  gallery       Json?
+
+  /// היסטוריית שינויי מחיר — PriceChange[] כ-Json
+  priceHistory Json @default("[]")
+
+  projectId String
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  buyerId String?
+  buyer   User?   @relation("UnitBuyer", fields: [buyerId], references: [id])
+
+  /// השריון הפעיל (מונע מכירה כפולה)
+  activeReservationId String?
+
+  reservations  Reservation[]
+  leads         Lead[]
+  viewings      Viewing[]
+  invites       Invite[]
+  deals         Deal[]
+  listings      Listing[]
+  conversations Conversation[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([projectId, status])
+}
+
+model Reservation {
+  id     String            @id @default(cuid())
+  status ReservationStatus @default(requested)
+
+  unitId String
+  unit   Unit   @relation(fields: [unitId], references: [id], onDelete: Cascade)
+
+  projectId String
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  sellerId String
+  seller   User   @relation("ReservationSeller", fields: [sellerId], references: [id])
+
+  clientId  String?
+  expiresAt DateTime?
+  note      String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([sellerId, status])
+}
+
+/**
+ * ---------- מרקטפלייס ----------
+ */
+
+model Listing {
+  id          String @id @default(cuid())
+  title       Json
+  description Json
+
+  country      Json
+  city         String
+  neighborhood String?
+  street       String?
+  lat          Float?
+  lng          Float?
+
+  dealType     DealType
+  category     ListingCategory
+  availability ListingAvailability
+
+  priceAmount   Int
+  priceCurrency Currency
+
+  rooms     Float
+  sqm       Int
+  floor     String?
+  yearBuilt Int?
+  parking   Int?
+  /// תאריך ISO או "flexible"
+  entry     String?
+
+  badge    Json?
+  features Json  @default("[]")
+  images   Json  @default("[]")
+
+  projectId String?
+  project   Project? @relation(fields: [projectId], references: [id])
+  unitId    String?
+  unit      Unit?    @relation(fields: [unitId], references: [id])
+
+  agentId   String
+  agent     User      @relation("ListingAgent", fields: [agentId], references: [id])
+  agentRole AgentRole
+
+  viewings Viewing[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([dealType, category, city])
+  @@index([priceAmount])
+}
+
+/**
+ * ---------- לידים ----------
+ */
+
+model Lead {
+  id          String     @id @default(cuid())
+  name        String
+  email       String?
+  phone       String?
+  countryCode String?
+  source      LeadSource
+  stage       LeadStage  @default(new)
+  heat        LeadHeat   @default(cold)
+  score       Int        @default(0)
+
+  budgetAmount   Int?
+  budgetCurrency Currency?
+
+  projectId String?
+  project   Project? @relation(fields: [projectId], references: [id])
+  unitId    String?
+  unit      Unit?    @relation(fields: [unitId], references: [id])
+
+  assignedToId String?
+  assignedTo   User?   @relation("LeadAssignee", fields: [assignedToId], references: [id])
+
+  activities     LeadActivity[]
+  viewings       Viewing[]
+  conversations  Conversation[]
+  nextFollowUpAt DateTime?
+  lastActivityAt DateTime
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([assignedToId, stage])
+}
+
+model LeadActivity {
+  id   String           @id @default(cuid())
+  at   DateTime
+  kind LeadActivityKind
+
+  leadId String
+  lead   Lead   @relation(fields: [leadId], references: [id], onDelete: Cascade)
+
+  byUserId String
+  byUser   User   @relation("ActivityBy", fields: [byUserId], references: [id])
+
+  summary   String
+  fromStage LeadStage?
+  toStage   LeadStage?
+
+  @@index([leadId, at])
+}
+
+/**
+ * ---------- סיורים ----------
+ */
+
+model Viewing {
+  id String @id @default(cuid())
+
+  sellerId String
+  seller   User   @relation("ViewingSeller", fields: [sellerId], references: [id])
+
+  leadId String
+  lead   Lead   @relation(fields: [leadId], references: [id], onDelete: Cascade)
+
+  unitId    String?
+  unit      Unit?    @relation(fields: [unitId], references: [id])
+  listingId String?
+  listing   Listing? @relation(fields: [listingId], references: [id])
+
+  scheduledAt DateTime
+  durationMin Int?
+  status      ViewingStatus @default(scheduled)
+  note        String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([sellerId, scheduledAt])
+}
+
+/**
+ * ---------- הזמנות לקוח, עסקאות, תשלומים ----------
+ */
+
+model Invite {
+  id    String @id @default(cuid())
+  name  String
+  email String
+
+  invitedById String
+  invitedBy   User   @relation("InviteBy", fields: [invitedById], references: [id])
+
+  projectId String?
+  project   Project? @relation(fields: [projectId], references: [id])
+  unitId    String?
+  unit      Unit?    @relation(fields: [unitId], references: [id])
+
+  status      InviteStatus @default(pending)
+  expiresAt   DateTime?
+  accessUntil DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Deal {
+  id    String    @id @default(cuid())
+  stage DealStage @default(negotiation)
+
+  unitId String
+  unit   Unit   @relation(fields: [unitId], references: [id])
+
+  projectId String
+  project   Project @relation(fields: [projectId], references: [id])
+
+  clientId String
+  client   User   @relation("DealClient", fields: [clientId], references: [id])
+
+  contractorId String
+  contractor   Organization @relation(fields: [contractorId], references: [id])
+
+  sellerId String?
+  seller   User?   @relation("DealSeller", fields: [sellerId], references: [id])
+
+  priceAmount   Int
+  priceCurrency Currency
+
+  commissionAmount   Int?
+  commissionCurrency Currency?
+
+  clientSince DateTime?
+
+  documents     DealDocument[]
+  payments      Payment[]
+  approvals     PaymentApproval[]
+  conversations Conversation[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([sellerId, stage])
+}
+
+model DealDocument {
+  id     String         @id @default(cuid())
+  kind   DocumentKind
+  status DocumentStatus @default(draft)
+  file   Json
+
+  dealId String
+  deal   Deal   @relation(fields: [dealId], references: [id], onDelete: Cascade)
+
+  requiresSignature Boolean   @default(false)
+  signedAt          DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Payment {
+  id    String @id @default(cuid())
+  label String
+
+  dealId String
+  deal   Deal   @relation(fields: [dealId], references: [id], onDelete: Cascade)
+
+  amount   Int
+  currency Currency
+  dueDate  DateTime
+  status   PaymentStatus @default(scheduled)
+  paidAt   DateTime?
+  receipt  Json?
+
+  approvals PaymentApproval[]
+}
+
+/// אישור תשלום דו-שלבי: בקשה ← אישור קבלן ← אישור מנהל (פרק 16.2)
+model PaymentApproval {
+  id     String                @id @default(cuid())
+  status PaymentApprovalStatus @default(requested)
+
+  dealId String
+  deal   Deal   @relation(fields: [dealId], references: [id], onDelete: Cascade)
+
+  paymentId String?
+  payment   Payment? @relation(fields: [paymentId], references: [id])
+
+  amount   Int
+  currency Currency
+
+  requestedById String
+  requestedBy   User   @relation("ApprovalRequestedBy", fields: [requestedById], references: [id])
+
+  contractorApprovedAt DateTime?
+  adminConfirmedAt     DateTime?
+  confirmationRef      String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+/**
+ * ---------- צ'אט (פרק 9) ----------
+ */
+
+/// שיחה — מתחילה לרוב כליד מול מתווך, ותומכת בקבוצה:
+/// המתווך יכול לצרף משתתפים (קבלן, חברים של הליד) דרך ConversationParticipant.
+model Conversation {
+  id      String                  @id @default(cuid())
+  context ConversationContextType @default(direct)
+
+  /**
+   * קישור אופציונלי לישות ההקשר — לפי context
+   */
+  leadId String?
+  lead   Lead?   @relation(fields: [leadId], references: [id])
+  unitId String?
+  unit   Unit?   @relation(fields: [unitId], references: [id])
+  dealId String?
+  deal   Deal?   @relation(fields: [dealId], references: [id])
+
+  participants ConversationParticipant[]
+  messages     ChatMessage[]
+
+  /// למיון רשימת השיחות בלי join על ההודעה האחרונה
+  lastMessageAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([lastMessageAt])
+}
+
+model ConversationParticipant {
+  id String @id @default(cuid())
+
+  conversationId String
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  userId String
+  user   User   @relation("ChatParticipant", fields: [userId], references: [id])
+
+  role Role
+
+  /// מי צירף את המשתתף (null למייסדי השיחה)
+  addedById String?
+  addedBy   User?   @relation("ParticipantAddedBy", fields: [addedById], references: [id])
+
+  /// ההודעה האחרונה שנקראה — ממנה נגזר מונה "לא נקרא" (עובד גם בקבוצה)
+  lastReadMessageId String?
+
+  joinedAt DateTime  @default(now())
+  leftAt   DateTime?
+
+  @@unique([conversationId, userId])
+  @@index([userId])
+}
+
+model ChatMessage {
+  id String @id @default(cuid())
+
+  conversationId String
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  senderId String
+  sender   User   @relation("MessageSender", fields: [senderId], references: [id])
+
+  body        String
+  /// MediaAsset[] כ-Json — כמו gallery
+  attachments Json   @default("[]")
+  /// קישור אופציונלי של ההודעה לישות (ConversationContext כ-Json)
+  linkedEntity Json?
+
+  createdAt DateTime @default(now())
+
+  @@index([conversationId, createdAt])
+}
+
+/// בקשת הצטרפות קבלן/סוכנות (פרק 17)
+model PartnerApplication {
+  id          String                   @id @default(cuid())
+  type        OrganizationType
+  companyName String
+  contactName String
+  email       String
+  phone       String?
+  country     String
+  status      PartnerApplicationStatus @default(pending)
+
+  reviewedById String?
+  reviewedBy   User?     @relation("ApplicationReviewer", fields: [reviewedById], references: [id])
+  reviewedAt   DateTime?
+  note         String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }

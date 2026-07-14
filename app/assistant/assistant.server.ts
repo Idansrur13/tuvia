@@ -6,8 +6,8 @@
 import Anthropic from '@anthropic-ai/sdk'
 import { zodOutputFormat } from '@anthropic-ai/sdk/helpers/zod'
 import { z } from 'zod'
-import { LISTINGS, listingById } from '~/data'
-import type { AiRecommendation, Locale } from '~/types'
+import { getListings } from '~/server/queries.server'
+import type { AiRecommendation, Listing, Locale } from '~/types'
 import { ensureApiKey } from '../server/anthropic.server'
 
 /* ---------- סכמת הפלט ---------- */
@@ -42,8 +42,8 @@ export type AssistantOutcome =
 
 /* ---------- הפרומפט ---------- */
 
-function buildSystemPrompt(locale: Locale) {
-  const inventory = LISTINGS.map((l) => ({
+function buildSystemPrompt(locale: Locale, listings: Listing[]) {
+  const inventory = listings.map((l) => ({
     id: l.id,
     title: l.title,
     city: l.address.city,
@@ -88,11 +88,14 @@ export async function askAssistant(
   ensureApiKey()
   const client = new Anthropic()
 
+  // המלאי נטען מבסיס הנתונים ומוזרם לפרומפט
+  const listings = await getListings()
+
   try {
     const response = await client.messages.parse({
       model: 'claude-sonnet-5',
       max_tokens: 1500,
-      system: buildSystemPrompt(locale),
+      system: buildSystemPrompt(locale, listings),
       messages: turns.map((t) => ({ role: t.role, content: t.content })),
       output_config: { format: zodOutputFormat(AssistantSchema) },
     })
@@ -102,7 +105,7 @@ export async function askAssistant(
     // מסננים המלצות למזהים קיימים בלבד (הגנה מהזיות), ממיינים ותוחמים
     const recommendations: AiRecommendation[] =
       response.parsed_output.recommendations
-        .filter((r) => listingById(r.listingId))
+        .filter((r) => listings.some((l) => l.id === r.listingId))
         .map((r) => ({
           listingId: r.listingId,
           matchScore: Math.max(0, Math.min(100, Math.round(r.matchScore))),

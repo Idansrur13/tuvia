@@ -63,7 +63,7 @@ export async function action({
     try {
       const result = JSON.parse(String(formData.get('result'))) as ImportResult
       const { applyImport } = await import('../../server/store.server')
-      return { saved: applyImport(result) }
+      return { saved: await applyImport(result) }
     } catch {
       return { error: 'saveFailed' }
     }

@@ -272,14 +272,14 @@ export default function DashboardLayout() {
         </div>
       </header>
 
-      <div className='lg:pr-64'>
+      <div className='lg:ps-64'>
         {/* key לפי הנתיב — התוכן נכנס מחדש באנימציה בכל מעבר עמוד */}
         <motion.main
           key={location.pathname}
           variants={fadeUp}
           initial='hidden'
           animate='visible'
-          className='mx-auto max-w-6xl p-4 sm:p-6 lg:p-8'
+          className='mx-auto  p-4 sm:p-6 lg:p-8'
         >
           <Outlet />
         </motion.main>

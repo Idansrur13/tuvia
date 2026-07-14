@@ -25,19 +25,13 @@ import {
   Text,
   TextLink,
 } from '../../../components/ui'
-import type { Viewing, ViewingStatus } from '~/types'
-import {
-  LEADS,
-  LISTINGS,
-  PROJECTS,
-  VIEWING_STATUS_META,
-  leadById,
-  listingById,
-  unitById,
-  viewingsFor,
-} from '~/data'
+import type { Lead, Listing, Project, Unit, Viewing, ViewingStatus } from '~/types'
+import { VIEWING_STATUS_META } from '~/data'
+import { getLeads, getListings, getProjects, viewingsFor } from '~/server/queries.server'
 import { useLocale } from '~/i18n/locale'
 import type { DictKey } from '~/i18n/dictionary'
+import { LeadDrawer } from '~/components/leads/lead-drawer'
+import { AnimatePresence } from 'motion/react'
 
 /** המוכרת המחוברת (עד שיהיה auth אמיתי). */
 const CURRENT_SELLER_ID = 'u-michal'
@@ -45,6 +39,48 @@ const CURRENT_SELLER_ID = 'u-michal'
 export function meta({}: Route.MetaArgs) {
   return [{ title: 'סיורים וביקורים | Viewings' }]
 }
+
+export async function loader() {
+  const [viewings, leads, projects, listings] = await Promise.all([
+    viewingsFor(CURRENT_SELLER_ID),
+    getLeads(),
+    getProjects(),
+    getListings(),
+  ])
+
+  /* מפות lookup לצירופים בכרטיסי הסיורים — נבנות פעם אחת בצד השרת */
+  const leadsById: Record<string, Lead> = Object.fromEntries(
+    leads.map((l) => [l.id, l]),
+  )
+  const listingsById: Record<string, Listing> = Object.fromEntries(
+    listings.map((l) => [l.id, l]),
+  )
+  const unitsById: Record<string, Unit> = Object.fromEntries(
+    projects.flatMap((p) => p.units.map((u) => [u.id, u])),
+  )
+  const projectsById: Record<string, Project> = Object.fromEntries(
+    projects.map((p) => [p.id, p]),
+  )
+
+  return {
+    viewings,
+    projects,
+    leadsById,
+    listingsById,
+    unitsById,
+    projectsById,
+    myLeads: leads.filter(
+      (l) =>
+        l.assignedToId === CURRENT_SELLER_ID &&
+        l.stage !== 'won' &&
+        l.stage !== 'lost',
+    ),
+    myListings: listings.filter((l) => l.agentId === CURRENT_SELLER_ID),
+  }
+}
+
+/* מפות ה-lookup שה-loader מחזיר, מועברות לכרטיס הסיור */
+type Lookups = Awaited<ReturnType<typeof loader>>
 
 type Bucket = 'today' | 'tomorrow' | 'upcoming' | 'past'
 
@@ -61,7 +97,9 @@ function bucketOf(v: Viewing, now: Date): Bucket {
   const tomorrow = new Date(now.getTime() + 86_400_000).toDateString()
   if (d.toDateString() === today)
     return Date.parse(v.scheduledAt) < now.getTime() &&
-      (v.status === 'completed' || v.status === 'noShow' || v.status === 'cancelled')
+      (v.status === 'completed' ||
+        v.status === 'noShow' ||
+        v.status === 'cancelled')
       ? 'past'
       : 'today'
   if (d.toDateString() === tomorrow) return 'tomorrow'
@@ -70,26 +108,39 @@ function bucketOf(v: Viewing, now: Date): Bucket {
 
 function ViewingCard({
   viewing,
+  lookups,
+  selectedLead,
   onStatusChange,
 }: {
   viewing: Viewing
+  lookups: Lookups
+  selectedLead: (l: Lead) => void
   onStatusChange: (s: ViewingStatus) => void
 }) {
   const { t, formatDate, formatTime } = useLocale()
-  const lead = leadById(viewing.leadId)
-  const unit = viewing.unitId ? unitById(viewing.unitId) : undefined
-  const listing = viewing.listingId ? listingById(viewing.listingId) : undefined
-  const project = unit
-    ? PROJECTS.find((p) => p.id === unit.projectId)
+  const lead = lookups.leadsById[viewing.leadId]
+  const unit = viewing.unitId ? lookups.unitsById[viewing.unitId] : undefined
+  const listing = viewing.listingId
+    ? lookups.listingsById[viewing.listingId]
     : undefined
+  const project = unit ? lookups.projectsById[unit.projectId] : undefined
   const propertyName = unit?.name ?? (listing ? t(listing.title) : '—')
   const done =
     viewing.status === 'completed' ||
     viewing.status === 'cancelled' ||
     viewing.status === 'noShow'
 
+  const patchLead = (id: string, patch: Partial<Lead>) =>
+    console.log('leadddddd patchLead', patch)
+  // setLeads((prev) => prev.map((l) => (l.id === id ? { ...l, ...patch } : l)))
+
   return (
-    <Card className='flex flex-wrap items-center gap-3'>
+    <Card
+      className='flex flex-wrap items-center gap-3'
+      onClick={() => {
+        if (lead) selectedLead(lead)
+      }}
+    >
       {/* מועד */}
       <span className='flex h-12 w-16 shrink-0 flex-col items-center justify-center rounded-xl bg-primary-50 text-primary-700'>
         <span className='text-sm font-bold' dir='ltr'>
@@ -146,13 +197,12 @@ function ViewingCard({
   )
 }
 
-export default function SellerViewings() {
+export default function SellerViewings({ loaderData }: Route.ComponentProps) {
   const { t, tt } = useLocale()
   const now = new Date()
+  const [selectedLead, setSelectedLead] = useState<Lead | null>(null)
 
-  const [viewings, setViewings] = useState<Viewing[]>(() =>
-    viewingsFor(CURRENT_SELLER_ID),
-  )
+  const [viewings, setViewings] = useState<Viewing[]>(loaderData.viewings)
   const [modalOpen, setModalOpen] = useState(false)
   const [created, setCreated] = useState(false)
 
@@ -164,15 +214,15 @@ export default function SellerViewings() {
   ).length
   const weekCount = viewings.filter((v) => {
     const dt = Date.parse(v.scheduledAt)
-    return dt >= now.getTime() - 86_400_000 && dt < now.getTime() + 7 * 86_400_000
+    return (
+      dt >= now.getTime() - 86_400_000 && dt < now.getTime() + 7 * 86_400_000
+    )
   }).length
   const completed = viewings.filter((v) => v.status === 'completed').length
   const finished = viewings.filter((v) =>
     ['completed', 'noShow', 'cancelled'].includes(v.status),
   ).length
-  const completionRate = finished
-    ? Math.round((completed / finished) * 100)
-    : 0
+  const completionRate = finished ? Math.round((completed / finished) * 100) : 0
 
   /* ---------- קיבוץ לפי יום ---------- */
   const buckets = useMemo(() => {
@@ -191,23 +241,16 @@ export default function SellerViewings() {
   const setStatus = (id: string, status: ViewingStatus) =>
     setViewings((prev) =>
       prev.map((v) =>
-        v.id === id
-          ? { ...v, status, updatedAt: new Date().toISOString() }
-          : v,
+        v.id === id ? { ...v, status, updatedAt: new Date().toISOString() } : v,
       ),
     )
 
   /* ---------- תיאום סיור חדש ---------- */
-  const myLeads = LEADS.filter(
-    (l) =>
-      l.assignedToId === CURRENT_SELLER_ID &&
-      l.stage !== 'won' &&
-      l.stage !== 'lost',
-  )
-  const availableUnits = PROJECTS.filter((p) => p.status === 'published')
+  const { myLeads, myListings } = loaderData
+  const availableUnits = loaderData.projects
+    .filter((p) => p.status === 'published')
     .flatMap((p) => p.units.map((u) => ({ project: p, unit: u })))
     .filter(({ unit }) => unit.status !== 'sold')
-  const myListings = LISTINGS.filter((l) => l.agentId === CURRENT_SELLER_ID)
 
   const createViewing = (form: FormData) => {
     const property = String(form.get('property'))
@@ -298,6 +341,8 @@ export default function SellerViewings() {
                   <ViewingCard
                     key={v.id}
                     viewing={v}
+                    lookups={loaderData}
+                    selectedLead={(l) => setSelectedLead(l)}
                     onStatusChange={(s) => setStatus(v.id, s)}
                   />
                 ))}
@@ -376,6 +421,16 @@ export default function SellerViewings() {
           </div>
         </form>
       </Modal>
+      <AnimatePresence>
+        {selectedLead && (
+          <LeadDrawer
+            lead={selectedLead}
+            currentUserId={'bg'}
+            onClose={() => setSelectedLead(null)}
+            onUpdate={(patch) => {}}
+          />
+        )}
+      </AnimatePresence>
     </div>
   )
 }
