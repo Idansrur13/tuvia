@@ -4,6 +4,7 @@ export default [
   index('routes/home.tsx'),
   route('property/:id', 'routes/property.tsx'),
   route('assistant', 'routes/assistant.tsx'),
+  route('logIn', 'routes/logIn.tsx'),
 
   /*
    * אזור הדשבורד — מחולק לפי תפקידים.

@@ -1,9 +1,9 @@
 import { LogInIcon, LogOutIcon, UserCircle2 } from 'lucide-react'
-
 import { useState, useRef, useEffect } from 'react'
 import { Button } from '../ui'
 import { useLocale } from '~/i18n/locale'
 
+import { createClient } from '@supabase/supabase-js'
 /**
  * Auth זמני — עד שתחובר מערכת אימות אמיתית.
  * מחזיר "לא מחובר" כך שמוצג כפתור התחברות. להחליף ב-hook אמיתי בהמשך.
@@ -18,7 +18,7 @@ function useAuth() {
   }
 }
 
-const LogIn = () => {
+const LogInOld = () => {
   const { tt } = useLocale()
   const [open, setOpen] = useState(false)
   const { userD, loginWithGoogle, logout, loading } = useAuth()
@@ -124,4 +124,4 @@ const LogIn = () => {
   )
 }
 
-export default LogIn
+// export default LogIn

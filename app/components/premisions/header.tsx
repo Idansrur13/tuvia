@@ -3,7 +3,7 @@ import { Link } from 'react-router'
 import { motion } from 'motion/react'
 import { Logo } from '../logo'
 import { fadeDown, IconButton, TextLink } from '../ui'
-import LogIn from './logIn'
+
 import { LanguageSwitcher } from '~/i18n/language-switcher'
 import { useLocale } from '~/i18n/locale'
 
@@ -73,14 +73,9 @@ export function Header({
             <SparklesIcon className='h-4 w-4' />
             <span className='hidden sm:block'>{tt('navAssistant')}</span>
           </Link>
-          <TextLink
-            href='/dashboard'
-            variant='nav'
-            className='hidden lg:block'
-          >
+          <TextLink href='/dashboard' variant='nav' className='hidden lg:block'>
             {tt('contractorsArea')}
           </TextLink>
-          <LogIn />
         </nav>
       </div>
 
