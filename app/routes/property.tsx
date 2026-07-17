@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Link, data, useParams } from 'react-router'
+import { Link, data, useFetcher } from 'react-router'
 import { AnimatePresence, MotionConfig, motion } from 'motion/react'
 import type { Route } from './+types/property'
 import {
@@ -56,11 +56,11 @@ import { useLocale } from '~/i18n/locale'
 // import LogIn from '~/components/premisions/logIn'
 import { Header } from '~/components/premisions/header'
 import { DetailTile } from './dashboard/property'
+import { contactLeadForm } from '~/server/users.server'
 
 export function meta({ matches }: Route.MetaArgs) {
   const match = matches.find((m) => m?.id === 'routes/property')
-  const listing = (match?.loaderData as { listing?: Unit } | undefined)
-    ?.listing
+  const listing = (match?.loaderData as { listing?: Unit } | undefined)?.listing
   return [
     {
       title: listing ? `${listing.title.he} | תכלת נדל״ן` : 'תכלת נדל״ן',
@@ -94,6 +94,10 @@ export async function loader({ params }: Route.LoaderArgs) {
   return { listing, fromProject, similar, project, agent, organization }
 }
 
+export async function action({ request }: Route.ActionArgs) {
+  const form = await request.formData()
+  return await contactLeadForm(form)
+}
 /* ---------- קומפוננטות משנה ---------- */
 
 function Lightbox({
@@ -175,7 +179,9 @@ function ContactCard({
   organization?: Organization
 }) {
   const { tt } = useLocale()
-  const [sent, setSent] = useState(false)
+  const fetcher = useFetcher<typeof action>()
+  const sent = fetcher.data?.ok === true
+  const busy = fetcher.state !== 'idle'
   /*
    * אנונימיות קבלנים (פרק 17): באזור הציבורי קבלן מוצג כמספר/כינוי
    * בלבד, ללא שם וללא טלפון ישיר. הקשר נוצר דרך השארת ליד.
@@ -252,17 +258,13 @@ function ContactCard({
           </Text>
         </motion.div>
       ) : (
-        <form
-          className='space-y-3'
-          onSubmit={(e) => {
-            e.preventDefault()
-            setSent(true)
-          }}
-        >
+        <fetcher.Form method='post' className='space-y-3'>
+          <input type='hidden' name='unitId' value={listing.id} />
           <Field label={tt('fullName')}>
             <Input
               name='name'
               required
+              className='w-full'
               placeholder={tt('fullNamePlaceholder')}
             />
           </Field>
@@ -270,19 +272,20 @@ function ContactCard({
             <Input
               name='phone'
               type='tel'
+
               required
               placeholder='050-0000000'
               dir='ltr'
-              className='text-right'
+              className='text-right w-full '
             />
           </Field>
-          <Button type='submit' className='w-full'>
+          <Button type='submit' className='w-full' disabled={busy}>
             {tt('scheduleViewing')}
           </Button>
           <Text as='p' variant='small' className='text-center'>
             {tt('noObligation')}
           </Text>
-        </form>
+        </fetcher.Form>
       )}
     </Card>
   )
@@ -451,43 +454,43 @@ export default function PropertyPage({ loaderData }: Route.ComponentProps) {
 
           {/* Gallery */}
           {images.length > 0 && (
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5, delay: 0.1 }}
-            className='mt-5 grid grid-cols-3 grid-rows-2 gap-2 overflow-hidden rounded-3xl'
-          >
-            <button
-              type='button'
-              onClick={() => setLightbox(0)}
-              className='group relative col-span-2 row-span-2'
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.5, delay: 0.1 }}
+              className='mt-5 grid grid-cols-3 grid-rows-2 gap-2 overflow-hidden rounded-3xl'
             >
-              <img
-                src={images[0].url}
-                alt={images[0].name}
-                className='h-full max-h-110 w-full object-cover transition duration-500 group-hover:scale-[1.02]'
-              />
-            </button>
-            {images.slice(1, 3).map((src, i) => (
               <button
-                key={src.id}
                 type='button'
-                onClick={() => setLightbox(i + 1)}
-                className='group relative'
+                onClick={() => setLightbox(0)}
+                className='group relative col-span-2 row-span-2'
               >
                 <img
-                  src={src.url}
-                  alt={t(listing.title)}
-                  className='h-full max-h-52 w-full object-cover transition duration-500 group-hover:scale-[1.03]'
+                  src={images[0].url}
+                  alt={images[0].name}
+                  className='h-full max-h-110 w-full object-cover transition duration-500 group-hover:scale-[1.02]'
                 />
-                {i === 1 && (
-                  <span className='absolute inset-0 flex items-center justify-center bg-gray-900/30 text-sm font-semibold text-white opacity-0 transition group-hover:opacity-100'>
-                    {tt('allPhotos')}
-                  </span>
-                )}
               </button>
-            ))}
-          </motion.div>
+              {images.slice(1, 3).map((src, i) => (
+                <button
+                  key={src.id}
+                  type='button'
+                  onClick={() => setLightbox(i + 1)}
+                  className='group relative'
+                >
+                  <img
+                    src={src.url}
+                    alt={t(listing.title)}
+                    className='h-full max-h-52 w-full object-cover transition duration-500 group-hover:scale-[1.03]'
+                  />
+                  {i === 1 && (
+                    <span className='absolute inset-0 flex items-center justify-center bg-gray-900/30 text-sm font-semibold text-white opacity-0 transition group-hover:opacity-100'>
+                      {tt('allPhotos')}
+                    </span>
+                  )}
+                </button>
+              ))}
+            </motion.div>
           )}
 
           {/* Content + sidebar */}

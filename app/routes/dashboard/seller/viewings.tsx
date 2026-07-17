@@ -19,7 +19,6 @@ import {
   Input,
   Modal,
   PageHeader,
-  PillSelect,
   Select,
   StatCard,
   Text,
@@ -32,6 +31,7 @@ import {
   getLeads,
   getProjects,
   getUnitsAgent,
+  updateViewingStatus,
   viewingsFor,
 } from '~/server/queries.server'
 import { useLocale } from '~/i18n/locale'
@@ -82,6 +82,13 @@ export async function loader() {
 
 export async function action({ request }: Route.ActionArgs) {
   const form = await request.formData()
+  if (form.get('intent') === 'status') {
+    await updateViewingStatus(
+      String(form.get('viewingId')),
+      form.get('status') as ViewingStatus,
+    )
+    return { ok: true }
+  }
   const viewing = await createViewing(form)
   return { viewing }
 }
@@ -208,6 +215,8 @@ export default function SellerViewings({ loaderData }: Route.ComponentProps) {
   const [modalOpen, setModalOpen] = useState(false)
   const [created, setCreated] = useState(false)
   const fetcher = useFetcher()
+  /* fetcher נפרד לעדכוני סטטוס — לא מתערבב עם יצירת סיור */
+  const statusFetcher = useFetcher()
 
   /* ---------- KPI ---------- */
   const todayCount = viewings.filter(
@@ -241,12 +250,17 @@ export default function SellerViewings({ loaderData }: Route.ComponentProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [viewings])
 
-  const setStatus = (id: string, status: ViewingStatus) =>
+  const setStatus = (id: string, status: ViewingStatus) => {
+    statusFetcher.submit(
+      { intent: 'status', viewingId: id, status },
+      { method: 'post' },
+    )
     setViewings((prev) =>
       prev.map((v) =>
         v.id === id ? { ...v, status, updatedAt: new Date().toISOString() } : v,
       ),
     )
+  }
 
   /* ---------- תיאום סיור חדש ---------- */
   const { myLeads, myUnits } = loaderData

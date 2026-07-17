@@ -17,15 +17,20 @@ import {
 } from './mappers.server'
 import type {
   Deal,
+  DealStage,
   Invite,
   Lead,
+  LeadHeat,
+  LeadStage,
   Organization,
   Payment,
   Project,
   Reservation,
   Unit,
+  UnitStatus,
   User,
   Viewing,
+  ViewingStatus,
 } from '~/types'
 export const CURRENT_SELLER_ID = 'u-michal'
 
@@ -68,6 +73,10 @@ export async function projectById(id: string): Promise<Project | undefined> {
 export async function unitById(id: string): Promise<Unit | undefined> {
   const r = await db.unit.findUnique({ where: { id } })
   return r ? toUnit(r) : undefined
+}
+
+export async function updateUnitStatus(unitId: string, status: UnitStatus) {
+  await db.unit.update({ where: { id: unitId }, data: { status } })
 }
 
 export async function getReservations(): Promise<Reservation[]> {
@@ -161,7 +170,72 @@ export async function leadsAssignedTo(userId: string): Promise<Lead[]> {
   return rows.map(toLead)
 }
 
+/**
+ * שינוי שלב בליד + רישום ביומן הפעילות (פרק 13).
+ * ה-summary מגיע מהלקוח כי הוא מנוסח בשפת הממשק הפעילה.
+ */
+export async function changeLeadStage(opts: {
+  leadId: string
+  stage: LeadStage
+  byUserId: string
+  summary: string
+}) {
+  const { leadId, stage, byUserId, summary } = opts
+  const current = await db.lead.findUniqueOrThrow({
+    where: { id: leadId },
+    select: { stage: true },
+  })
+  if (current.stage === stage) return
+  const now = new Date()
+  await db.$transaction([
+    db.lead.update({
+      where: { id: leadId },
+      data: { stage, lastActivityAt: now },
+    }),
+    db.leadActivity.create({
+      data: {
+        leadId,
+        at: now,
+        kind: 'stageChange',
+        byUserId,
+        summary,
+        fromStage: current.stage,
+        toStage: stage,
+      },
+    }),
+  ])
+}
+
+export async function addLeadNote(
+  leadId: string,
+  text: string,
+  byUserId: string,
+) {
+  const now = new Date()
+  await db.$transaction([
+    db.lead.update({ where: { id: leadId }, data: { lastActivityAt: now } }),
+    db.leadActivity.create({
+      data: { leadId, at: now, kind: 'note', byUserId, summary: text },
+    }),
+  ])
+}
+
+export async function updateLeadFollowUp(leadId: string, at: string | null) {
+  await db.lead.update({
+    where: { id: leadId },
+    data: { nextFollowUpAt: at ? new Date(at) : null },
+  })
+}
+
+export async function updateLeadHeat(leadId: string, heat: LeadHeat) {
+  await db.lead.update({ where: { id: leadId }, data: { heat } })
+}
+
 /* ---------- סיורים ---------- */
+
+export async function updateViewingStatus(id: string, status: ViewingStatus) {
+  await db.viewing.update({ where: { id }, data: { status } })
+}
 
 export async function viewingsFor(sellerId: string): Promise<Viewing[]> {
   const rows = await db.viewing.findMany({
@@ -197,6 +271,10 @@ export async function getDeals(): Promise<Deal[]> {
     orderBy: { createdAt: 'desc' },
   })
   return rows.map(toDeal)
+}
+
+export async function updateDealStage(dealId: string, stage: DealStage) {
+  await db.deal.update({ where: { id: dealId }, data: { stage } })
 }
 
 export async function dealById(id: string): Promise<Deal | undefined> {

@@ -245,7 +245,9 @@ export default function SellerPortfolio({ loaderData }: Route.ComponentProps) {
                     return (
                       <tr
                         key={unit.id}
-                        onClick={() => navigate(`/dashboard/${unit.id}`)}
+                        onClick={() =>
+                          navigate(`/dashboard/property/${unit.id}`)
+                        }
                         className='cursor-pointer border-b border-gray-50 transition hover:bg-gray-50/60'
                       >
                         <td className='px-4 py-3'>

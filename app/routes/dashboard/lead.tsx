@@ -76,6 +76,8 @@ import {
   formatMoney,
 } from '~/data'
 import {
+  addLeadNote,
+  changeLeadStage,
   createViewing,
   dealForLead,
   getUnitsAgent,
@@ -83,6 +85,8 @@ import {
   markPaymentPaid,
   projectById,
   unitById,
+  updateLeadFollowUp,
+  updateLeadHeat,
   viewingsForClient,
 } from '~/server/queries.server'
 import { useLocale } from '~/i18n/locale'
@@ -117,12 +121,34 @@ export async function loader({ params }: Route.LoaderArgs) {
   }
 }
 
-export async function action({ request }: Route.ActionArgs) {
+export async function action({ request, params }: Route.ActionArgs) {
   const form = await request.formData()
+  const intent = form.get('intent')
   // אין עדיין סליקה ללקוח — המתווך מאשר ידנית שהתשלום התקבל
-  if (form.get('intent') === 'markPaid') {
+  if (intent === 'markPaid') {
     const payment = await markPaymentPaid(String(form.get('paymentId')))
     return { payment }
+  }
+  if (intent === 'stage') {
+    await changeLeadStage({
+      leadId: params.id,
+      stage: form.get('stage') as Lead['stage'],
+      byUserId: CURRENT_USER_ID,
+      summary: String(form.get('summary') ?? ''),
+    })
+    return { ok: true }
+  }
+  if (intent === 'note') {
+    await addLeadNote(params.id, String(form.get('text') ?? ''), CURRENT_USER_ID)
+    return { ok: true }
+  }
+  if (intent === 'followUp') {
+    await updateLeadFollowUp(params.id, String(form.get('at') ?? '') || null)
+    return { ok: true }
+  }
+  if (intent === 'heat') {
+    await updateLeadHeat(params.id, form.get('heat') as Lead['heat'])
+    return { ok: true }
   }
   const viewing = await createViewing(form)
   return { viewing }
@@ -244,6 +270,11 @@ function LeadView({
   const fetcher = useFetcher()
   /* אישור תשלום — fetcher נפרד כדי שמצב השליחה לא יתערבב עם טופס הסיורים */
   const payFetcher = useFetcher()
+  /* fetcher לכל סוג מוטציה — שליחות סמוכות לא מבטלות זו את זו */
+  const stageFetcher = useFetcher()
+  const noteFetcher = useFetcher()
+  const followFetcher = useFetcher()
+  const heatFetcher = useFetcher()
   const payingId =
     payFetcher.state !== 'idle' ? payFetcher.formData?.get('paymentId') : null
   const flag = lead.countryCode ? COUNTRIES[lead.countryCode]?.flag : undefined
@@ -276,6 +307,11 @@ function LeadView({
 
   const changeStage = (stage: LeadStage) => {
     if (lead.stage === stage) return
+    const summary = `${t(LEAD_STAGE_META[lead.stage].label)} → ${t(LEAD_STAGE_META[stage].label)}`
+    stageFetcher.submit(
+      { intent: 'stage', stage, summary },
+      { method: 'post' },
+    )
     const now = new Date().toISOString()
     update({
       stage,
@@ -297,6 +333,7 @@ function LeadView({
   }
 
   const addNote = (text: string) => {
+    noteFetcher.submit({ intent: 'note', text }, { method: 'post' })
     const now = new Date().toISOString()
     update({
       lastActivityAt: now,
@@ -931,13 +968,16 @@ function LeadView({
               <Input
                 type='date'
                 value={lead.nextFollowUpAt?.slice(0, 10) ?? ''}
-                onChange={(e) =>
-                  update({
-                    nextFollowUpAt: e.target.value
-                      ? `${e.target.value}T09:00:00Z`
-                      : undefined,
-                  })
-                }
+                onChange={(e) => {
+                  const at = e.target.value
+                    ? `${e.target.value}T09:00:00Z`
+                    : undefined
+                  followFetcher.submit(
+                    { intent: 'followUp', at: at ?? '' },
+                    { method: 'post' },
+                  )
+                  update({ nextFollowUpAt: at })
+                }}
               />
             </Field>
             {isOverdue(lead) && (
@@ -951,9 +991,11 @@ function LeadView({
             <Field label={tt('colHeat')}>
               <Select
                 value={lead.heat}
-                onChange={(e) =>
-                  update({ heat: e.target.value as Lead['heat'] })
-                }
+                onChange={(e) => {
+                  const heat = e.target.value as Lead['heat']
+                  heatFetcher.submit({ intent: 'heat', heat }, { method: 'post' })
+                  update({ heat })
+                }}
               >
                 <HeatOptions />
               </Select>

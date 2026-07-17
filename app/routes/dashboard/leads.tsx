@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { useNavigate } from 'react-router'
+import { useFetcher, useNavigate } from 'react-router'
 import type { Route } from './+types/leads'
 import {
   Badge,
@@ -61,7 +61,12 @@ import {
   accessWindowEnd,
   formatMoney,
 } from '~/data'
-import { getInvites, getLeads, getProjects } from '~/server/queries.server'
+import {
+  changeLeadStage,
+  getInvites,
+  getLeads,
+  getProjects,
+} from '~/server/queries.server'
 import { useLocale } from '~/i18n/locale'
 import type { DictKey } from '~/i18n/dictionary'
 
@@ -80,6 +85,19 @@ export async function loader() {
     getProjects(),
   ])
   return { leads, invites, projects }
+}
+
+export async function action({ request }: Route.ActionArgs) {
+  const form = await request.formData()
+  if (form.get('intent') === 'stage') {
+    await changeLeadStage({
+      leadId: String(form.get('leadId')),
+      stage: form.get('stage') as LeadStage,
+      byUserId: CURRENT_USER_ID,
+      summary: String(form.get('summary') ?? ''),
+    })
+  }
+  return { ok: true }
 }
 
 /* ---------- סינון, מיון ותצוגות שמורות ---------- */
@@ -117,6 +135,7 @@ const SORT_LABEL: Record<SortKey, DictKey> = {
 export default function ContractorLeads({ loaderData }: Route.ComponentProps) {
   const { t, tt, locale, formatDate } = useLocale()
   const navigate = useNavigate()
+  const stageFetcher = useFetcher()
   const { projects } = loaderData
   const [leads, setLeads] = useState(loaderData.leads)
   const [invites, setInvites] = useState(loaderData.invites)
@@ -222,6 +241,11 @@ export default function ContractorLeads({ loaderData }: Route.ComponentProps) {
   const changeStage = (id: string, stage: LeadStage) => {
     const lead = leads.find((l) => l.id === id)
     if (!lead || lead.stage === stage) return
+    const summary = `${t(LEAD_STAGE_META[lead.stage].label)} → ${t(LEAD_STAGE_META[stage].label)}`
+    stageFetcher.submit(
+      { intent: 'stage', leadId: id, stage, summary },
+      { method: 'post' },
+    )
     const now = new Date().toISOString()
     patchLead(id, {
       stage,

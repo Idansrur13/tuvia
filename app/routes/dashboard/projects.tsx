@@ -23,10 +23,13 @@ import {
   UsersIcon,
 } from 'lucide-react'
 import { UNIT_STATUS_META, formatMoney } from '~/data'
-import { getProjects } from '~/server/queries.server'
+import {
+  getProjects,
+  updateUnitStatus as updateUnitStatusDb,
+} from '~/server/queries.server'
 import type { Currency, MediaAsset, Project, UnitStatus } from '~/types'
 import { useLocale } from '~/i18n/locale'
-import { Link } from 'react-router'
+import { Link, useFetcher } from 'react-router'
 
 export function meta({}: Route.MetaArgs) {
   return [{ title: 'הפרויקטים שלי | Projects' }]
@@ -35,6 +38,17 @@ export function meta({}: Route.MetaArgs) {
 export async function loader() {
   // הנתונים מגיעים מהמסד בצד השרת — כולל פרויקטים שנוספו בייבוא החכם
   return { projects: await getProjects() }
+}
+
+export async function action({ request }: Route.ActionArgs) {
+  const form = await request.formData()
+  if (form.get('intent') === 'unitStatus') {
+    await updateUnitStatusDb(
+      String(form.get('unitId')),
+      form.get('status') as UnitStatus,
+    )
+  }
+  return { ok: true }
 }
 
 const UNIT_STATUSES = Object.keys(UNIT_STATUS_META) as UnitStatus[]
@@ -137,6 +151,7 @@ export default function ContractorProjects({
   const { t, tt, locale } = useLocale()
 
   const [projects, setProjects] = useState(loaderData.projects)
+  const statusFetcher = useFetcher()
   const [selectedId, setSelectedId] = useState(loaderData.projects[0].id)
   const [statusFilter, setStatusFilter] = useState<UnitStatus | 'all'>('all')
 
@@ -166,7 +181,11 @@ export default function ContractorProjects({
       ? project.units
       : project.units.filter((u) => u.status === statusFilter)
 
-  const updateUnitStatus = (unitId: string, status: UnitStatus) =>
+  const updateUnitStatus = (unitId: string, status: UnitStatus) => {
+    statusFetcher.submit(
+      { intent: 'unitStatus', unitId, status },
+      { method: 'post' },
+    )
     setProjects((prev) =>
       prev.map((p) =>
         p.id !== project.id
@@ -179,6 +198,7 @@ export default function ContractorProjects({
             },
       ),
     )
+  }
 
   return (
     <div className='space-y-6'>

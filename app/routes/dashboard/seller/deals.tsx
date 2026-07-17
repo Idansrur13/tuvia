@@ -11,7 +11,6 @@ import {
   Card,
   EmptyState,
   PageHeader,
-  PillSelect,
   Select,
   StatCard,
   Text,
@@ -32,9 +31,15 @@ import {
   formatMoney,
   isWithinWindow,
 } from '~/data'
-import { getDeals, getProjects, getUsers } from '~/server/queries.server'
+import {
+  getDeals,
+  getProjects,
+  getUsers,
+  updateDealStage,
+} from '~/server/queries.server'
 import { db } from '~/server/db.server'
 import { useLocale } from '~/i18n/locale'
+import { useFetcher } from 'react-router'
 
 /** המוכרת המחוברת (עד שיהיה auth אמיתי). */
 export const CURRENT_SELLER_ID = 'u-michal'
@@ -85,12 +90,24 @@ export async function loader() {
   }
 }
 
+export async function action({ request }: Route.ActionArgs) {
+  const form = await request.formData()
+  if (form.get('intent') === 'stage') {
+    await updateDealStage(
+      String(form.get('dealId')),
+      form.get('stage') as DealStage,
+    )
+  }
+  return { ok: true }
+}
+
 const DEAL_STAGES = Object.keys(DEAL_STAGE_META) as DealStage[]
 
 export default function SellerDeals({ loaderData }: Route.ComponentProps) {
   const { t, tt, locale, formatDate } = useLocale()
   const { paymentApprovals, usersById, unitsById, projectsById } = loaderData
   const [deals, setDeals] = useState<Deal[]>(loaderData.myDeals)
+  const stageFetcher = useFetcher()
 
   /* עסקה "פתוחה" = עוד לא נחתם חוזה (פרק 16.1). */
   const openDeals = deals.filter((d) => d.stage !== 'contractSigned')
@@ -110,12 +127,17 @@ export default function SellerDeals({ loaderData }: Route.ComponentProps) {
     .reduce((sum, d) => sum + (d.commission?.amount ?? 0), 0)
   const commissionCurrency = deals[0]?.commission?.currency ?? 'ILS'
 
-  const setStage = (id: string, stage: DealStage) =>
+  const setStage = (id: string, stage: DealStage) => {
+    stageFetcher.submit(
+      { intent: 'stage', dealId: id, stage },
+      { method: 'post' },
+    )
     setDeals((prev) =>
       prev.map((d) =>
         d.id === id ? { ...d, stage, updatedAt: new Date().toISOString() } : d,
       ),
     )
+  }
 
   return (
     <div className='space-y-6'>

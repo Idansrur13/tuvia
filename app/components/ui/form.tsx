@@ -7,7 +7,7 @@ import { SearchIcon } from 'lucide-react'
 import { cn } from './cn'
 
 const fieldBase =
-  ' rounded-xl border border-gray-200 bg-white px-2 py-1  text-sm text-gray-900 outline-none transition placeholder:text-gray-400 focus:border-primary-400 focus:ring-2 focus:ring-primary-100'
+  ' rounded-xl border border-gray-200 bg-white px-2 py-2  text-sm text-gray-900 outline-none transition placeholder:text-gray-400 focus:border-primary-400 focus:ring-2 focus:ring-primary-100'
 
 export function Input({
   className,
