@@ -169,20 +169,24 @@ export default function SellerInventory({ loaderData }: Route.ComponentProps) {
                     className='border-b border-gray-50 transition hover:bg-gray-50/60'
                   >
                     <td className='px-4 py-2.5'>
-                      <p className='font-semibold text-gray-900'>{unit.name}</p>
+                      <p className='font-semibold text-gray-900'>
+                        {t(unit.title)}
+                      </p>
                       <Text as='span' variant='small'>
                         {unit.id}
                       </Text>
                     </td>
                     <td className='px-3 py-2.5 text-xs text-gray-600'>
-                      {project.address.country.flag} {t(project.name)}
+                      {project.status} {t(project.name)}
                     </td>
                     <td className='px-3 py-2.5 text-gray-600'>{unit.rooms}</td>
                     <td className='px-3 py-2.5 text-gray-600'>{unit.sqm}</td>
                     <td className='whitespace-nowrap px-3 py-2.5'>
-                      <p className='font-semibold text-gray-900'>
-                        {formatMoney(unit.price, locale)}
-                      </p>
+                      {unit.price && (
+                        <p className='font-semibold text-gray-900'>
+                          {formatMoney(unit.price, locale)}
+                        </p>
+                      )}
                       {priceChange && (
                         <Text as='p' variant='small' className='line-through'>
                           {tt('priceWas')}{' '}

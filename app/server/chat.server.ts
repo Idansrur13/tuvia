@@ -9,37 +9,17 @@ import type {
   ChatParticipant,
   Conversation,
   ConversationContext,
+  Localized,
   MediaAsset,
   MessageDelivery,
   Role,
 } from '~/types'
 import type {
   ChatMessage as DbChatMessage,
-  Conversation as DbConversation,
   ConversationParticipant as DbParticipant,
 } from '../../generated/prisma/client'
 
 /* ---------- מיפוי ---------- */
-
-const toContext = (r: DbConversation): ConversationContext => {
-  switch (r.context) {
-    case 'unit':
-      return { type: 'unit', unitId: r.unitId! }
-    case 'deal':
-      return { type: 'deal', dealId: r.dealId! }
-    case 'lead':
-      return { type: 'lead', leadId: r.leadId! }
-    case 'direct':
-      return { type: 'direct' }
-  }
-}
-
-const contextColumns = (ctx: ConversationContext) => ({
-  context: ctx.type,
-  unitId: ctx.type === 'unit' ? ctx.unitId : null,
-  dealId: ctx.type === 'deal' ? ctx.dealId : null,
-  leadId: ctx.type === 'lead' ? ctx.leadId : null,
-})
 
 const toParticipant = (r: DbParticipant): ChatParticipant => ({
   userId: r.userId,
@@ -57,9 +37,7 @@ function deliveryOf(
   ordered: DbChatMessage[],
   participants: DbParticipant[],
 ): MessageDelivery {
-  const others = participants.filter(
-    (p) => p.userId !== senderId && !p.leftAt,
-  )
+  const others = participants.filter((p) => p.userId !== senderId && !p.leftAt)
   if (others.length === 0) return 'sent'
   const readBy = (p: DbParticipant) => {
     const i = p.lastReadMessageId
@@ -113,36 +91,15 @@ export async function getChatData(): Promise<{
     messages.push(...mapped)
     conversations.push({
       id: r.id,
-      context: toContext(r),
       participants: r.participants.filter((p) => !p.leftAt).map(toParticipant),
       lastMessage: mapped.at(-1),
-      isGroup: r.participants.filter((p) => !p.leftAt).length > 2,
+      leadId: r.leadId,
       createdAt: r.createdAt.toISOString(),
       updatedAt: (r.lastMessageAt ?? r.updatedAt).toISOString(),
     })
   }
 
   return { conversations, messages }
-}
-
-/** שמות הישויות לצ'יפים של הקשר השיחה (יחידה/ליד/עסקה). */
-export async function getContextNames(): Promise<{
-  units: Record<string, string>
-  leads: Record<string, string>
-  deals: Record<string, string>
-}> {
-  const [units, leads, deals] = await Promise.all([
-    db.unit.findMany({ select: { id: true, name: true } }),
-    db.lead.findMany({ select: { id: true, name: true } }),
-    db.deal.findMany({
-      select: { id: true, unit: { select: { name: true } } },
-    }),
-  ])
-  return {
-    units: Object.fromEntries(units.map((u) => [u.id, u.name])),
-    leads: Object.fromEntries(leads.map((l) => [l.id, l.name])),
-    deals: Object.fromEntries(deals.map((d) => [d.id, d.unit.name])),
-  }
 }
 
 /* ---------- מוטציות ---------- */
@@ -191,31 +148,30 @@ export async function markConversationRead(
   })
 }
 
-/** פתיחת שיחה ישירה — מאתרת קיימת (1-על-1 direct) או יוצרת חדשה. */
-export async function startDirectConversation(
+/**
+ * פתיחת שיחה מול ליד — כל שיחה נסובה סביב ליד.
+ * מאתרת שיחה קיימת של הפותח סביב אותו ליד, ואם אין — יוצרת חדשה
+ * שבה הליד (שהוא גם User) משתתף כלקוח.
+ */
+export async function startLeadConversation(
   byUser: { id: string; role: Role },
-  withUser: { id: string; role: Role },
+  leadId: string,
 ): Promise<string> {
   const existing = await db.conversation.findFirst({
     where: {
-      context: 'direct',
-      AND: [
-        { participants: { some: { userId: byUser.id, leftAt: null } } },
-        { participants: { some: { userId: withUser.id, leftAt: null } } },
-      ],
+      leadId,
+      participants: { some: { userId: byUser.id, leftAt: null } },
     },
-    include: { participants: true },
   })
-  if (existing && existing.participants.filter((p) => !p.leftAt).length === 2)
-    return existing.id
+  if (existing) return existing.id
 
   const conv = await db.conversation.create({
     data: {
-      ...contextColumns({ type: 'direct' }),
+      leadId,
       participants: {
         create: [
           { userId: byUser.id, role: byUser.role },
-          { userId: withUser.id, role: withUser.role },
+          { userId: leadId, role: 'client' },
         ],
       },
     },

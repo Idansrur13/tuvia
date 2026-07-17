@@ -71,8 +71,8 @@ body {
  * הילות תכלת רכות בפינות + רשת שרטוט (blueprint) כמעט שקופה.
  */
 body {
-  background-color: #f6f8fb;
-  background-image: radial-gradient(60rem 32rem at 3% -8%, rgba(137, 205, 236, 0.29), #fefeff 60%);
+  background-color: rgb(239, 248, 252);
+  background-image: radial-gradient(60rem 32rem at 3% -8%, rgba(137, 205, 236, 0.29), #f6fcff 60%);
   background-attachment: fixed;
   background-size: auto, auto, 32px 32px, 32px 32px;
 

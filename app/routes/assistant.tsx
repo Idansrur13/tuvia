@@ -13,8 +13,8 @@ import { Button, Heading, Text, cn } from '../components/ui'
 import { Header } from '~/components/premisions/header'
 import { SiteFooter } from '../components/site-footer'
 import { formatMoney } from '~/data'
-import { getListings } from '~/server/queries.server'
-import type { AiRecommendation, Listing, Locale } from '~/types'
+import { getPublishedUnits } from '~/server/queries.server'
+import type { AiRecommendation, Locale, Unit } from '~/types'
 import { useLocale } from '~/i18n/locale'
 import type { DictKey } from '~/i18n/dictionary'
 import type {
@@ -37,7 +37,7 @@ export function meta({}: Route.MetaArgs) {
 
 /** טוען את מאגר הנכסים כדי להציג את כרטיסי ההמלצות של הבוט */
 export async function loader({}: Route.LoaderArgs) {
-  const listings = await getListings()
+  const listings = await getPublishedUnits()
   return { listings }
 }
 
@@ -98,10 +98,10 @@ function RecommendationCard({
   listings,
 }: {
   rec: AiRecommendation
-  listings: Listing[]
+  listings: Unit[]
 }) {
   const { t, tt, locale } = useLocale()
-  const listing = listings.find((l) => l.id === rec.listingId)
+  const listing = listings.find((l) => l.id === rec.unitId)
   if (!listing) return null
 
   return (
@@ -110,7 +110,7 @@ function RecommendationCard({
       className='group flex gap-3 rounded-2xl border border-gray-100 bg-white p-2.5 shadow-sm transition hover:border-primary-200 hover:shadow-md'
     >
       <img
-        src={listing.images[0]?.url}
+        src={listing.gallery?.[0]?.url}
         alt={t(listing.title)}
         className='h-20 w-24 shrink-0 rounded-xl object-cover'
       />
@@ -150,7 +150,9 @@ function RecommendationCard({
 
         <div className='mt-1 flex items-center justify-between gap-2'>
           <span className='text-sm font-bold text-gray-900'>
-            {formatMoney(listing.price, locale)}
+            {listing.price
+              ? formatMoney(listing.price, locale)
+              : tt('contactForPrice')}
           </span>
           <span className='flex items-center gap-1 text-xs font-medium text-primary-600 opacity-0 transition group-hover:opacity-100'>
             {tt('aiViewListing')}
@@ -162,7 +164,7 @@ function RecommendationCard({
   )
 }
 
-function Message({ msg, listings }: { msg: UiMessage; listings: Listing[] }) {
+function Message({ msg, listings }: { msg: UiMessage; listings: Unit[] }) {
   const mine = msg.role === 'user'
   return (
     <motion.div
@@ -187,7 +189,7 @@ function Message({ msg, listings }: { msg: UiMessage; listings: Listing[] }) {
           <div className='mt-2 space-y-2'>
             {msg.recommendations.map((rec) => (
               <RecommendationCard
-                key={rec.listingId}
+                key={rec.unitId}
                 rec={rec}
                 listings={listings}
               />

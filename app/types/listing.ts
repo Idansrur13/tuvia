@@ -26,34 +26,6 @@ export type ListingCategory =
 /** מצב זמינות/בנייה לצורך סינון (פרק 3.1). */
 export type ListingAvailability = 'new' | 'immediate' | 'underConstruction'
 
-export interface Listing extends Timestamps {
-  id: Id
-  title: Localized
-  description: Localized
-  address: Address
-  dealType: DealType
-  category: ListingCategory
-  availability: ListingAvailability
-  price: Money
-  rooms: number
-  sqm: number
-  floor?: string
-  yearBuilt?: number
-  parking?: number
-  /** תאריך אכלוס/כניסה — ISO או "flexible". */
-  entry?: ISODate | 'flexible'
-  /** תגית שיווקית ("בלעדיות", "חדש מקבלן"). */
-  badge?: Localized
-  features: Localized[]
-  images: MediaAsset[]
-  /** קישור לפרויקט הקבלן (אם הנכס מגיע ממלאי מסונכרן). */
-  projectId?: Id
-  unitId?: Id
-  /** האחראי המוצג ליצירת קשר — קבלן או מוכר. */
-  agentId: Id
-  agentRole: 'contractor' | 'seller'
-}
-
 /* ---------- חיפוש מתקדם (פרק 3.1) ---------- */
 
 export type SortOption = 'relevance' | 'priceAsc' | 'priceDesc' | 'newest'

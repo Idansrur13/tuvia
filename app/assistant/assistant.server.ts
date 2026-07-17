@@ -6,8 +6,8 @@
 import Anthropic from '@anthropic-ai/sdk'
 import { zodOutputFormat } from '@anthropic-ai/sdk/helpers/zod'
 import { z } from 'zod'
-import { getListings } from '~/server/queries.server'
-import type { AiRecommendation, Listing, Locale } from '~/types'
+import { getPublishedUnits } from '~/server/queries.server'
+import type { AiRecommendation, Locale, Unit } from '~/types'
 import { ensureApiKey } from '../server/anthropic.server'
 
 /* ---------- סכמת הפלט ---------- */
@@ -19,7 +19,7 @@ const AssistantSchema = z.object({
   recommendations: z
     .array(
       z.object({
-        listingId: z.string().describe('מזהה נכס קיים מהמאגר בלבד'),
+        unitId: z.string().describe('מזהה נכס קיים מהמאגר בלבד'),
         matchScore: z
           .number()
           .describe('דירוג התאמה כן 0-100 ביחס לבקשת המשתמש'),
@@ -42,7 +42,7 @@ export type AssistantOutcome =
 
 /* ---------- הפרומפט ---------- */
 
-function buildSystemPrompt(locale: Locale, listings: Listing[]) {
+function buildSystemPrompt(locale: Locale, listings: Unit[]) {
   const inventory = listings.map((l) => ({
     id: l.id,
     title: l.title,
@@ -51,7 +51,7 @@ function buildSystemPrompt(locale: Locale, listings: Listing[]) {
     country: l.address.country.name.en,
     dealType: l.dealType,
     category: l.category,
-    price: `${l.price.amount} ${l.price.currency}`,
+    price: l.price ? `${l.price.amount} ${l.price.currency}` : null,
     rooms: l.rooms,
     sqm: l.sqm,
     floor: l.floor ?? null,
@@ -89,7 +89,7 @@ export async function askAssistant(
   const client = new Anthropic()
 
   // המלאי נטען מבסיס הנתונים ומוזרם לפרומפט
-  const listings = await getListings()
+  const listings = await getPublishedUnits()
 
   try {
     const response = await client.messages.parse({
@@ -105,9 +105,9 @@ export async function askAssistant(
     // מסננים המלצות למזהים קיימים בלבד (הגנה מהזיות), ממיינים ותוחמים
     const recommendations: AiRecommendation[] =
       response.parsed_output.recommendations
-        .filter((r) => listings.some((l) => l.id === r.listingId))
+        .filter((r) => listings.some((l) => l.id === r.unitId))
         .map((r) => ({
-          listingId: r.listingId,
+          unitId: r.unitId,
           matchScore: Math.max(0, Math.min(100, Math.round(r.matchScore))),
           reason: r.reason,
         }))

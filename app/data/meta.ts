@@ -10,12 +10,13 @@ import type {
   LeadStage,
   Localized,
   PaymentApprovalStatus,
+  PaymentStatus,
   UnitStatus,
   ViewingStatus,
 } from '~/types'
 import { L } from './util'
 
-type BadgeTone = 'primary' | 'neutral' | 'warning' | 'success'
+type BadgeTone = 'primary' | 'neutral' | 'warning' | 'success' | 'danger'
 
 /** תווית + גוון badge לכל סטטוס יחידה. */
 export const UNIT_STATUS_META: Record<
@@ -69,6 +70,17 @@ export const DEAL_STAGE_META: Record<
   orderSigned: { label: L('הזמנה נחתמה', 'Order signed'), order: 3 },
   orderPaid: { label: L('הזמנה שולמה', 'Order paid'), order: 4 },
   contractSigned: { label: L('חתימת חוזה', 'Contract signed'), order: 5 },
+}
+
+/** סטטוסי תשלום בעסקה (פרק 4). */
+export const PAYMENT_STATUS_META: Record<
+  PaymentStatus,
+  { label: Localized; badge: BadgeTone }
+> = {
+  scheduled: { label: L('מתוכנן', 'Scheduled'), badge: 'neutral' },
+  due: { label: L('לתשלום', 'Due'), badge: 'warning' },
+  paid: { label: L('שולם', 'Paid'), badge: 'success' },
+  overdue: { label: L('באיחור', 'Overdue'), badge: 'danger' },
 }
 
 /** סטטוסי אישור תשלום דו-שלבי (פרק 16.2). */

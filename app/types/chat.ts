@@ -3,6 +3,7 @@
  * פרק 9. מחליף את הטיוטה מבוססת-Firebase שהייתה ב-routes/contractor/chat.tsx.
  */
 import type { Id, ISODate, MediaAsset, Timestamps } from './common'
+import type { Unit } from './project'
 import type { Role } from './user'
 
 /** הקשר השיחה — כל שיחה קשורה לישות (יחידה/עסקה/ליד) או ישירה. */
@@ -21,11 +22,14 @@ export interface ChatParticipant {
 
 export interface Conversation extends Timestamps {
   id: Id
-  context: ConversationContext
+
   participants: ChatParticipant[]
   lastMessage?: ChatMessage
-  /** שיחה קבוצתית (יותר משני משתתפים). */
-  isGroup: boolean
+  /**
+   * הליד שהוא מטרת השיחה — כל שיחה נסובה סביב ליד.
+   * הליד הוא גם User (PK משותף), ודרכו נשלפת היחידה (unitId) שהוא מתעניין בה.
+   */
+  leadId: Id
 }
 
 /** סטטוס מסירה של הודעה (פרק 9). */

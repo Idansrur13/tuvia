@@ -3,23 +3,15 @@
  * נפח הלידים גבוה, לכן המודל תומך בקומפקטיות, ניקוד, פעילות וניתוב.
  */
 import type { Id, ISODate, Money, Timestamps } from './common'
+import type { User } from './user'
 
 /** שלבי צינור הלידים. */
 export type LeadStage =
-  | 'new'
-  | 'contacted'
-  | 'meeting'
-  | 'negotiation'
-  | 'won'
-  | 'lost'
+  'new' | 'contacted' | 'meeting' | 'negotiation' | 'won' | 'lost'
 
 /** מקור הליד — משפיע על ניקוד וניתוב (פרק 8.2). */
 export type LeadSource =
-  | 'marketplace'
-  | 'aiAssistant'
-  | 'referral'
-  | 'campaign'
-  | 'manual'
+  'marketplace' | 'aiAssistant' | 'referral' | 'campaign' | 'manual'
 
 /** חום הליד — לתיעדוף בתצוגה המצומצמת. */
 export type LeadHeat = 'cold' | 'warm' | 'hot'
@@ -37,11 +29,7 @@ export interface LeadActivity {
   toStage?: LeadStage
 }
 
-export interface Lead extends Timestamps {
-  id: Id
-  name: string
-  email?: string
-  phone?: string
+export interface Lead extends User {
   /** קוד מדינה ISO לתצוגת דגל בינלאומית. */
   countryCode?: string
   source: LeadSource

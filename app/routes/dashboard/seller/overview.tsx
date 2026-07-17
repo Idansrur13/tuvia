@@ -22,14 +22,14 @@ import {
   Text,
   cn,
 } from '../../../components/ui'
-import type { Lead, Listing, Unit, Viewing } from '~/types'
+import type { Lead, Unit, Viewing } from '~/types'
 import { UNIT_STATUS_META, VIEWING_STATUS_META, formatMoney } from '~/data'
 import {
   getDeals,
   getLeads,
-  getListings,
   getProjects,
   getReservations,
+  getUnitsAgent,
   viewingsFor,
 } from '~/server/queries.server'
 import { useLocale } from '~/i18n/locale'
@@ -44,24 +44,21 @@ export function meta({}: Route.MetaArgs) {
 
 export async function loader() {
   /* שליפה מקבילה של כל מה שהעמוד צריך + בניית מפות lookup בצד השרת */
-  const [projects, reservations, deals, leads, viewings, listings] =
+  const [projects, reservations, deals, leads, viewings, unit] =
     await Promise.all([
       getProjects(),
       getReservations(),
       getDeals(),
       getLeads(),
       viewingsFor(CURRENT_SELLER_ID),
-      getListings(),
+      getUnitsAgent(CURRENT_SELLER_ID),
     ])
 
   const leadsById: Record<string, Lead> = Object.fromEntries(
     leads.map((l) => [l.id, l]),
   )
-  const listingsById: Record<string, Listing> = Object.fromEntries(
-    listings.map((l) => [l.id, l]),
-  )
   const unitsById: Record<string, Unit> = Object.fromEntries(
-    projects.flatMap((p) => p.units.map((u) => [u.id, u])),
+    unit.map((l) => [l.id, l]),
   )
 
   return {
@@ -73,7 +70,6 @@ export async function loader() {
     myLeads: leads.filter((l) => l.assignedToId === CURRENT_SELLER_ID),
     myViewings: viewings,
     leadsById,
-    listingsById,
     unitsById,
   }
 }
@@ -95,15 +91,13 @@ function ViewingRow({
   viewing,
   lead,
   unit,
-  listing,
 }: {
   viewing: Viewing
   lead?: Lead
   unit?: Unit
-  listing?: Listing
 }) {
   const { t, tt, formatTime } = useLocale()
-  const propertyName = unit?.name ?? (listing ? t(listing.title) : '—')
+  const propertyName = t(unit?.title)
   const meta = VIEWING_STATUS_META[viewing.status]
 
   return (
@@ -152,7 +146,6 @@ export default function SellerOverview({ loaderData }: Route.ComponentProps) {
     myDeals,
     myViewings,
     leadsById,
-    listingsById,
     unitsById,
   } = loaderData
 
@@ -185,7 +178,7 @@ export default function SellerOverview({ loaderData }: Route.ComponentProps) {
           items.push({
             id: `price-${unit.id}`,
             at: change.at,
-            title: `${tt('syncPriceDrop')} · ${unit.name}`,
+            title: `${tt('syncPriceDrop')} · ${t(unit.title)}`,
             desc: `${t(project.name)} — ${formatMoney(change.from, locale)} ← ${formatMoney(change.to, locale)}`,
             tone: 'success',
             icon: TagIcon,
@@ -198,7 +191,7 @@ export default function SellerOverview({ loaderData }: Route.ComponentProps) {
           items.push({
             id: `status-${unit.id}`,
             at: unit.updatedAt,
-            title: `${t(UNIT_STATUS_META[unit.status].label)} · ${unit.name}`,
+            title: `${t(UNIT_STATUS_META[unit.status].label)} · ${t(unit.title)}`,
             desc: t(project.name),
             tone: unit.status === 'sold' ? 'warning' : 'primary',
             icon: RefreshCwIcon,
@@ -212,7 +205,7 @@ export default function SellerOverview({ loaderData }: Route.ComponentProps) {
       items.push({
         id: `res-${res.id}`,
         at: res.updatedAt,
-        title: `${res.status === 'approved' ? tt('resApproved') : tt('resPending')} · ${unit?.name ?? res.unitId}`,
+        title: `${res.status === 'approved' ? tt('resApproved') : tt('resPending')} · ${t(unit?.title) ?? res.unitId}`,
         desc: t(projects.find((p) => p.id === res.projectId)?.name),
         tone: res.status === 'approved' ? 'success' : 'primary',
         icon: HandshakeIcon,
@@ -293,7 +286,6 @@ export default function SellerOverview({ loaderData }: Route.ComponentProps) {
                   viewing={v}
                   lead={leadsById[v.leadId]}
                   unit={v.unitId ? unitsById[v.unitId] : undefined}
-                  listing={v.listingId ? listingsById[v.listingId] : undefined}
                 />
               ))}
             </ul>

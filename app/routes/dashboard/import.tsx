@@ -27,7 +27,7 @@ import {
 import type {
   ImportResult,
   ImportSummary,
-  ParsedUnit,
+  ImportedUnit,
   UnitChange,
 } from '~/types'
 import { useLocale } from '~/i18n/locale'
@@ -120,15 +120,15 @@ function downloadCsv(result: ImportResult, tt: (k: DictKey) => string) {
   for (const p of result.projects) {
     for (const u of p.units) {
       rows.push([
-        p.name,
-        p.city,
-        p.country,
-        p.currency,
-        u.name,
+        p.name.he,
+        u.address.city,
+        u.address.country.name.he,
+        u.price?.currency ?? '',
+        u.title.he,
         u.rooms ?? '',
         u.sqm ?? '',
-        u.price ?? '',
-        u.price === null ? tt('impSoldPlaceholder') : tt('forSale'),
+        u.price?.amount ?? '',
+        u.price ? tt('forSale') : tt('impSoldPlaceholder'),
         tt(CHANGE_META[u.change].labelKey),
       ])
     }
@@ -277,19 +277,17 @@ function Dropzone({
 
 function UnitRow({
   unit,
-  currency,
   onPriceChange,
 }: {
-  unit: ParsedUnit
-  currency: string
+  unit: ImportedUnit
   onPriceChange: (price: number | null) => void
 }) {
-  const { tt } = useLocale()
+  const { t, tt } = useLocale()
   const meta = CHANGE_META[unit.change]
   return (
     <tr className='border-t border-gray-50'>
       <td className='px-4 py-2.5'>
-        <p className='font-semibold text-gray-900'>{unit.name}</p>
+        <p className='font-semibold text-gray-900'>{t(unit.title)}</p>
         {unit.buyer && (
           <Text as='span' variant='small'>
             {unit.buyer}
@@ -301,16 +299,16 @@ function UnitRow({
       <td className='px-4 py-2.5'>
         <input
           type='number'
-          value={unit.price ?? ''}
+          value={unit.price?.amount ?? ''}
           placeholder={tt('impSoldPlaceholder')}
           onChange={(e) =>
             onPriceChange(e.target.value === '' ? null : Number(e.target.value))
           }
           className='w-32 rounded-lg border border-gray-200 px-2.5 py-1.5 text-sm outline-none transition placeholder:text-success-700 focus:border-primary-400 focus:ring-2 focus:ring-primary-100'
         />
-        {unit.change === 'priceChanged' && unit.oldPrice != null && (
+        {unit.change === 'priceChanged' && unit.oldPrice && (
           <Text as='p' variant='small' className='mt-0.5 line-through'>
-            {formatPrice({ amount: unit.oldPrice, currency })}
+            {formatPrice(unit.oldPrice)}
           </Text>
         )}
       </td>
@@ -324,7 +322,7 @@ function UnitRow({
 /* ---------- העמוד ---------- */
 
 export default function SmartImport() {
-  const { tt } = useLocale()
+  const { t, tt } = useLocale()
   // bump ל-key של ה-fetchers מאפס את כל הזרימה ל"ייבוא נוסף"
   const [round, setRound] = useState(0)
   const parseFetcher = useFetcher<typeof action>({ key: `parse-${round}` })
@@ -392,7 +390,12 @@ export default function SmartImport() {
     setResult((prev) => {
       if (!prev) return prev
       const next = structuredClone(prev)
-      next.projects[pi].units[ui].price = price
+      const unit = next.projects[pi].units[ui]
+      const currency =
+        unit.price?.currency ?? unit.oldPrice?.currency ?? 'USD'
+      unit.price = price == null ? undefined : { amount: price, currency }
+      /* מחיר ריק = היחידה נמכרה */
+      unit.status = price == null ? 'sold' : unit.status
       return next
     })
 
@@ -498,13 +501,13 @@ export default function SmartImport() {
 
             {/* Projects */}
             {result.projects.map((project, pi) => (
-              <motion.div key={`${project.name}-${pi}`} variants={fadeUp}>
+              <motion.div key={project.id} variants={fadeUp}>
                 <Card className='p-0'>
                   <div className='flex flex-wrap items-center justify-between gap-2 border-b border-gray-100 p-4'>
                     <div>
                       <div className='flex items-center gap-2'>
                         <Heading level={2} size='md'>
-                          {project.name}
+                          {t(project.name)}
                         </Heading>
                         <Badge variant={project.isNew ? 'primary' : 'neutral'}>
                           {project.isNew
@@ -513,8 +516,9 @@ export default function SmartImport() {
                         </Badge>
                       </div>
                       <Text variant='small' className='mt-0.5'>
-                        {project.city}, {project.country} ·{' '}
-                        {tt('currencyLabel')}: {project.currency}
+                        {project.units[0]?.address.city ?? ''} ·{' '}
+                        {tt('currencyLabel')}:{' '}
+                        {project.units[0]?.price?.currency ?? '—'}
                       </Text>
                     </div>
                     <Text as='span' variant='muted'>
@@ -546,9 +550,8 @@ export default function SmartImport() {
                       <tbody>
                         {project.units.map((unit, ui) => (
                           <UnitRow
-                            key={`${unit.name}-${ui}`}
+                            key={unit.id}
                             unit={unit}
-                            currency={project.currency}
                             onPriceChange={(price) =>
                               updatePrice(pi, ui, price)
                             }

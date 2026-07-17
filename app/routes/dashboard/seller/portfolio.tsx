@@ -38,9 +38,9 @@ import {
 import type { Deal, Project, Reservation, Unit, User, Viewing } from '~/types'
 import {
   getDeals,
-  getListings,
   getProjects,
   getReservations,
+  getUnitsAgent,
   getUsers,
   viewingsFor,
 } from '~/server/queries.server'
@@ -64,14 +64,14 @@ interface PortfolioRow {
 }
 
 export async function loader() {
-  const [projects, reservations, deals, users, viewings, listings] =
+  const [projects, reservations, deals, users, viewings, myUnits] =
     await Promise.all([
       getProjects(),
       getReservations(),
       getDeals(),
       getUsers(),
       viewingsFor(CURRENT_SELLER_ID),
-      getListings(),
+      getUnitsAgent(CURRENT_SELLER_ID),
     ])
 
   /* שריונים שלי (מבוקשים/מאושרים) - הבסיס לתיק. */
@@ -117,7 +117,7 @@ export async function loader() {
     myReservations,
     myDeals,
     /* נכסים עצמאיים שהמתווך משווק. */
-    myListings: listings.filter((l) => l.agentId === CURRENT_SELLER_ID),
+    myUnits: myUnits,
   }
 }
 
@@ -128,7 +128,7 @@ export default function SellerPortfolio({ loaderData }: Route.ComponentProps) {
   /* באנר הצלחה אחרי פרסום מודעה בעמוד "מודעה חדשה" (מגיע ב-location.state). */
   const adPublished = Boolean(useLocation().state?.adPublished)
 
-  const { portfolioRows, myReservations, myDeals, myListings } = loaderData
+  const { portfolioRows, myReservations, myDeals, myUnits } = loaderData
 
   /* KPIs (פרק 6). */
   const openDeals = myDeals.filter((d) => d.stage !== 'contractSigned')
@@ -153,7 +153,7 @@ export default function SellerPortfolio({ loaderData }: Route.ComponentProps) {
       <div className='grid grid-cols-2 gap-4 xl:grid-cols-4'>
         <StatCard
           label={tt('kpiPortfolioAssets')}
-          value={portfolioRows.length + myListings.length}
+          value={portfolioRows.length + myUnits.length}
           icon={<BriefcaseIcon className='h-5 w-5' />}
         />
         <StatCard
@@ -250,7 +250,7 @@ export default function SellerPortfolio({ loaderData }: Route.ComponentProps) {
                       >
                         <td className='px-4 py-3'>
                           <p className='font-semibold text-gray-900'>
-                            {unit.name}
+                            {t(unit.title)}
                           </p>
                           <Text as='span' variant='small'>
                             {unit.id}
@@ -260,10 +260,10 @@ export default function SellerPortfolio({ loaderData }: Route.ComponentProps) {
                         </td>
 
                         <td className='px-3 py-3 text-xs text-gray-600'>
-                          {project?.address.country.flag} {t(project?.name)}
+                          {unit?.address.country.flag} {t(project?.name)}
                         </td>
                         <td className='whitespace-nowrap px-3 py-3 font-semibold text-gray-900'>
-                          {formatMoney(unit.price, locale)}
+                          {unit.price && formatMoney(unit.price, locale)}
                         </td>
                         <td className='px-3 py-3'>
                           <Badge variant={statusMeta.badge}>
@@ -355,42 +355,48 @@ export default function SellerPortfolio({ loaderData }: Route.ComponentProps) {
           </Heading>
         </div>
         <ul className='divide-y divide-gray-50'>
-          {myListings.map((listing) => (
-            <li key={listing.id}>
+          {myUnits.map((unit) => (
+            <li key={unit.id}>
               <Link
-                to={`/dashboard/property/${listing.id}`}
+                to={`/dashboard/property/${unit.id}`}
                 className='flex items-center gap-3 px-4 py-3 transition hover:bg-gray-50/70'
               >
-                <img
-                  src={listing.images[0]?.url}
-                  alt={t(listing.title)}
-                  className='h-12 w-16 shrink-0 rounded-lg object-cover'
-                />
+                {unit.gallery && unit.gallery[0]?.url && (
+                  <img
+                    src={unit.gallery[0]?.url}
+                    alt={t(unit.title)}
+                    className='h-12 w-16 shrink-0 rounded-lg object-cover'
+                  />
+                )}
                 <div className='min-w-0 flex-1'>
                   <p className='truncate text-sm font-semibold text-gray-900'>
-                    {t(listing.title)}
+                    {t(unit.title)}
                   </p>
                   <Text as='p' variant='small' className='truncate'>
-                    {[listing.address.neighborhood, listing.address.city]
+                    {[unit.address.neighborhood, unit.address.city]
                       .filter(Boolean)
                       .join(', ')}
                     {' · '}
-                    {listing.rooms} · {listing.sqm} {tt('colSqm')}
+                    {unit.rooms} · {unit.sqm} {tt('colSqm')}
                   </Text>
                 </div>
                 <span className='shrink-0 text-sm font-bold text-gray-900'>
-                  {formatMoney(listing.price, locale)}
+                  {unit.price ? (
+                    formatMoney(unit.price, locale)
+                  ) : (
+                    <Button>{tt('impChangePrice')}</Button>
+                  )}
                 </span>
                 <Badge
-                  variant={listing.dealType === 'sale' ? 'primary' : 'success'}
+                  variant={unit.dealType === 'sale' ? 'primary' : 'success'}
                 >
-                  {listing.dealType === 'sale' ? tt('forSale') : tt('forRent')}
+                  {unit.dealType === 'sale' ? tt('forSale') : tt('forRent')}
                 </Badge>
                 <ExternalLinkIcon className='h-4 w-4 shrink-0 text-gray-300' />
               </Link>
             </li>
           ))}
-          {myListings.length === 0 && (
+          {myUnits.length === 0 && (
             <li className='p-4'>
               <EmptyState
                 title={tt('noResults')}

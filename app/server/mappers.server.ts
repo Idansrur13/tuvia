@@ -14,7 +14,6 @@ import type {
   Invite,
   Lead,
   LeadActivity,
-  Listing,
   Localized,
   MediaAsset,
   Money,
@@ -25,6 +24,7 @@ import type {
   Reservation,
   Unit,
   User,
+  UserPreferences,
   Viewing,
 } from '~/types'
 import type {
@@ -33,7 +33,6 @@ import type {
   Invite as DbInvite,
   Lead as DbLead,
   LeadActivity as DbLeadActivity,
-  Listing as DbListing,
   Organization as DbOrganization,
   Payment as DbPayment,
   Project as DbProject,
@@ -71,7 +70,8 @@ const toAddress = (r: AddressRow): Address => ({
   city: r.city,
   neighborhood: r.neighborhood ?? undefined,
   street: r.street ?? undefined,
-  point: r.lat != null && r.lng != null ? { lat: r.lat, lng: r.lng } : undefined,
+  point:
+    r.lat != null && r.lng != null ? { lat: r.lat, lng: r.lng } : undefined,
 })
 
 const stamps = (r: { createdAt: Date; updatedAt: Date }) => ({
@@ -99,15 +99,13 @@ export const toUser = (r: DbUser): User => ({
   name: r.name,
   email: r.email,
   phone: r.phone ?? undefined,
-  avatar: (r.avatar as MediaAsset | null) ?? undefined,
+  /* בעמודה שמור MediaAsset כ-Json; בדומיין — כתובת התמונה בלבד */
+  avatar: (r.avatar as MediaAsset | null)?.url ?? undefined,
   preferences: {
-    locale: r.locale as User['preferences']['locale'],
+    locale: r.locale as UserPreferences['locale'],
     currency: r.currency,
     timeZone: r.timeZone ?? undefined,
   },
-  permissions: r.permissions.length
-    ? (r.permissions as User['permissions'])
-    : undefined,
   organizationId: r.organizationId ?? undefined,
   lastActiveAt: isoOpt(r.lastActiveAt),
   ...stamps(r),
@@ -115,15 +113,29 @@ export const toUser = (r: DbUser): User => ({
 
 /* ---------- פרויקטים ויחידות ---------- */
 
+/** יחידה = הנכס המלא (מיזוג Listing→Unit): מלאי, כתובת ושדות שיווק. */
 export const toUnit = (r: DbUnit): Unit => ({
   id: r.id,
-  projectId: r.projectId,
-  name: r.name,
+  projectId: r.projectId ?? undefined,
+  title: r.title as Localized,
+  description: r.description as Localized,
+  address: toAddress(r),
+  agentId: r.agentId,
+  agentRole: r.agentRole,
+  publishedToMarketplace: r.publishedToMarketplace,
+  dealType: r.dealType,
+  category: r.category,
+  availability: r.availability,
   rooms: r.rooms,
   sqm: r.sqm,
   floor: r.floor ?? undefined,
-  price: money(r.priceAmount, r.priceCurrency),
+  price: moneyOpt(r.priceAmount, r.priceCurrency),
   status: r.status,
+  yearBuilt: r.yearBuilt ?? undefined,
+  parking: r.parking ?? undefined,
+  entry: r.entry ?? undefined,
+  badge: (r.badge as Localized | null) ?? undefined,
+  features: r.features as unknown as Localized[],
   gallery: (r.gallery as unknown as MediaAsset[] | null) ?? undefined,
   buyerId: r.buyerId ?? undefined,
   reservationId: r.activeReservationId ?? undefined,
@@ -139,9 +151,6 @@ export const toProject = (r: DbProject & { units: DbUnit[] }): Project => ({
   status: r.status,
   name: r.name as Localized,
   description: (r.description as Localized | null) ?? undefined,
-  address: toAddress(r),
-  cover: r.cover as unknown as MediaAsset,
-  gallery: r.gallery as unknown as MediaAsset[],
   units: r.units.map(toUnit),
   ...stamps(r),
 })
@@ -149,39 +158,12 @@ export const toProject = (r: DbProject & { units: DbUnit[] }): Project => ({
 export const toReservation = (r: DbReservation): Reservation => ({
   id: r.id,
   unitId: r.unitId,
-  projectId: r.projectId,
+  projectId: r.projectId ?? undefined,
   sellerId: r.sellerId,
   clientId: r.clientId ?? undefined,
   status: r.status,
   expiresAt: isoOpt(r.expiresAt),
   note: r.note ?? undefined,
-  ...stamps(r),
-})
-
-/* ---------- מרקטפלייס ---------- */
-
-export const toListing = (r: DbListing): Listing => ({
-  id: r.id,
-  title: r.title as Localized,
-  description: r.description as Localized,
-  address: toAddress(r),
-  dealType: r.dealType,
-  category: r.category,
-  availability: r.availability,
-  price: money(r.priceAmount, r.priceCurrency),
-  rooms: r.rooms,
-  sqm: r.sqm,
-  floor: r.floor ?? undefined,
-  yearBuilt: r.yearBuilt ?? undefined,
-  parking: r.parking ?? undefined,
-  entry: r.entry ?? undefined,
-  badge: (r.badge as Localized | null) ?? undefined,
-  features: r.features as unknown as Localized[],
-  images: r.images as unknown as MediaAsset[],
-  projectId: r.projectId ?? undefined,
-  unitId: r.unitId ?? undefined,
-  agentId: r.agentId,
-  agentRole: r.agentRole,
   ...stamps(r),
 })
 
@@ -197,11 +179,14 @@ export const toLeadActivity = (r: DbLeadActivity): LeadActivity => ({
   toStage: r.toStage ?? undefined,
 })
 
-export const toLead = (r: DbLead & { activities: DbLeadActivity[] }): Lead => ({
-  id: r.id,
-  name: r.name,
-  email: r.email ?? undefined,
-  phone: r.phone ?? undefined,
+/**
+ * ליד = הרחבה של User (PK משותף): הזהות מגיעה משורת המשתמש,
+ * שדות המסע (שלב/חום/ניקוד/יומן) מטבלת ההרחבה.
+ */
+export const toLead = (
+  r: DbLead & { activities: DbLeadActivity[]; user: DbUser },
+): Lead => ({
+  ...toUser(r.user),
   countryCode: r.countryCode ?? undefined,
   source: r.source,
   stage: r.stage,
@@ -224,7 +209,6 @@ export const toViewing = (r: DbViewing): Viewing => ({
   sellerId: r.sellerId,
   leadId: r.leadId,
   unitId: r.unitId ?? undefined,
-  listingId: r.listingId ?? undefined,
   scheduledAt: iso(r.scheduledAt),
   durationMin: r.durationMin ?? undefined,
   status: r.status,

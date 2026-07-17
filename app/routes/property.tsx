@@ -20,7 +20,7 @@ import {
 } from '../components/ui'
 import { Logo } from '../components/logo'
 import { SiteFooter } from '../components/site-footer'
-import { ListingCard } from '../listings/listing-card'
+import { UnitCard } from '../listings/unit-card'
 
 import {
   ArrowRightIcon,
@@ -44,22 +44,22 @@ import {
 } from 'lucide-react'
 import { LISTING_CATEGORIES } from '~/data'
 import {
-  listingById,
   organizationById,
   projectById,
-  sameProjectListings,
-  similarListings,
+  sameProjectUnits,
+  similarUnits,
+  unitById,
   userById,
 } from '~/server/queries.server'
-import type { Listing, MediaAsset, Organization, User } from '~/types'
+import type { MediaAsset, Organization, Unit, User } from '~/types'
 import { useLocale } from '~/i18n/locale'
-import LogIn from '~/components/premisions/logIn'
+// import LogIn from '~/components/premisions/logIn'
 import { Header } from '~/components/premisions/header'
 import { DetailTile } from './dashboard/property'
 
 export function meta({ matches }: Route.MetaArgs) {
   const match = matches.find((m) => m?.id === 'routes/property')
-  const listing = (match?.loaderData as { listing?: Listing } | undefined)
+  const listing = (match?.loaderData as { listing?: Unit } | undefined)
     ?.listing
   return [
     {
@@ -73,11 +73,11 @@ export function meta({ matches }: Route.MetaArgs) {
 }
 
 export async function loader({ params }: Route.LoaderArgs) {
-  const listing = await listingById(params.id)
+  const listing = await unitById(params.id)
   if (!listing) throw data('הנכס לא נמצא', { status: 404 })
 
-  const fromProject = await sameProjectListings(listing)
-  const similar = await similarListings(
+  const fromProject = await sameProjectUnits(listing)
+  const similar = await similarUnits(
     listing,
     fromProject.map((l) => l.id),
   )
@@ -170,7 +170,7 @@ function ContactCard({
   agent,
   organization,
 }: {
-  listing: Listing
+  listing: Unit
   agent?: User
   organization?: Organization
 }) {
@@ -185,7 +185,9 @@ function ContactCard({
   const agentName = isContractor
     ? `${tt('roleContractor')} ${contractorAlias ?? ''}`.trim()
     : (agent?.name ?? tt('roleAgent'))
-  const perSqm = Math.round(listing.price.amount / listing.sqm)
+  const perSqm = listing.price
+    ? Math.round(listing.price.amount / listing.sqm)
+    : undefined
 
   return (
     <Card className='sticky top-24 space-y-5 shadow-lg shadow-primary-500/5'>
@@ -193,7 +195,7 @@ function ContactCard({
       <div>
         <div className='flex items-baseline justify-between gap-2'>
           <p className='text-3xl font-extrabold text-gray-900'>
-            {formatPrice(listing.price)}
+            {listing.price ? formatPrice(listing.price) : tt('contactForPrice')}
             {listing.dealType === 'rent' && (
               <span className='text-base font-normal text-gray-500'>
                 {' '}
@@ -205,7 +207,7 @@ function ContactCard({
             {listing.dealType === 'sale' ? tt('forSale') : tt('forRent')}
           </Badge>
         </div>
-        {listing.dealType === 'sale' && (
+        {listing.dealType === 'sale' && perSqm != null && (
           <Text variant='small' className='mt-1'>
             {perSqm} {tt('perSqm')}
           </Text>
@@ -286,14 +288,14 @@ function ContactCard({
   )
 }
 
-function ListingsRow({
+function UnitsRow({
   title,
   subtitle,
   listings,
 }: {
   title: string
   subtitle?: string
-  listings: Listing[]
+  listings: Unit[]
 }) {
   if (listings.length === 0) return null
   return (
@@ -314,7 +316,7 @@ function ListingsRow({
         className='mt-5 grid grid-cols-1 gap-x-6 gap-y-10 sm:grid-cols-2 lg:grid-cols-4'
       >
         {listings.map((l) => (
-          <ListingCard key={l.id} listing={l} />
+          <UnitCard key={l.id} unit={l} />
         ))}
       </motion.div>
     </section>
@@ -331,8 +333,7 @@ export default function PropertyPage({ loaderData }: Route.ComponentProps) {
   const [lightbox, setLightbox] = useState<number | null>(null)
   const [liked, setLiked] = useState(false)
   const [copied, setCopied] = useState(false)
-  const projectId = useParams()
-  console.log('hiiiiiiiiiii', listing, loaderData)
+  const images = listing.gallery ?? []
   const share = async () => {
     try {
       await navigator.clipboard.writeText(window.location.href)
@@ -449,6 +450,7 @@ export default function PropertyPage({ loaderData }: Route.ComponentProps) {
           </motion.div>
 
           {/* Gallery */}
+          {images.length > 0 && (
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -461,12 +463,12 @@ export default function PropertyPage({ loaderData }: Route.ComponentProps) {
               className='group relative col-span-2 row-span-2'
             >
               <img
-                src={listing.images[0].url}
-                alt={listing.images[0].name}
+                src={images[0].url}
+                alt={images[0].name}
                 className='h-full max-h-110 w-full object-cover transition duration-500 group-hover:scale-[1.02]'
               />
             </button>
-            {listing.images.slice(1, 3).map((src, i) => (
+            {images.slice(1, 3).map((src, i) => (
               <button
                 key={src.id}
                 type='button'
@@ -486,6 +488,7 @@ export default function PropertyPage({ loaderData }: Route.ComponentProps) {
               </button>
             ))}
           </motion.div>
+          )}
 
           {/* Content + sidebar */}
           <div className='mt-8 grid gap-8 lg:grid-cols-[1fr_380px]'>
@@ -655,14 +658,14 @@ export default function PropertyPage({ loaderData }: Route.ComponentProps) {
           </div>
 
           {/* עוד מאותו פרויקט */}
-          <ListingsRow
+          <UnitsRow
             title={`${tt('moreInProject')} ${projectName}`}
             subtitle={tt('moreInProjectSub')}
             listings={fromProject}
           />
 
           {/* נכסים דומים */}
-          <ListingsRow title={tt('similarProperties')} listings={similar} />
+          <UnitsRow title={tt('similarProperties')} listings={similar} />
         </main>
 
         <SiteFooter />
@@ -671,7 +674,7 @@ export default function PropertyPage({ loaderData }: Route.ComponentProps) {
         <AnimatePresence>
           {lightbox !== null && (
             <Lightbox
-              images={listing.images}
+              images={images}
               index={lightbox}
               onClose={() => setLightbox(null)}
               onIndex={setLightbox}

@@ -7,8 +7,8 @@ import {
   toDeal,
   toInvite,
   toLead,
-  toListing,
   toOrganization,
+  toPayment,
   toProject,
   toReservation,
   toUnit,
@@ -19,14 +19,15 @@ import type {
   Deal,
   Invite,
   Lead,
-  Listing,
   Organization,
+  Payment,
   Project,
   Reservation,
   Unit,
   User,
   Viewing,
 } from '~/types'
+export const CURRENT_SELLER_ID = 'u-michal'
 
 /* ---------- משתמשים וארגונים ---------- */
 
@@ -50,7 +51,7 @@ export async function organizationById(
 
 export async function getProjects(): Promise<Project[]> {
   const rows = await db.project.findMany({
-    include: { units: { orderBy: { name: 'asc' } } },
+    include: { units: { orderBy: { id: 'asc' } } },
     orderBy: { createdAt: 'asc' },
   })
   return rows.map(toProject)
@@ -59,7 +60,7 @@ export async function getProjects(): Promise<Project[]> {
 export async function projectById(id: string): Promise<Project | undefined> {
   const r = await db.project.findUnique({
     where: { id },
-    include: { units: { orderBy: { name: 'asc' } } },
+    include: { units: { orderBy: { id: 'asc' } } },
   })
   return r ? toProject(r) : undefined
 }
@@ -75,54 +76,68 @@ export async function getReservations(): Promise<Reservation[]> {
 
 /* ---------- מרקטפלייס ---------- */
 
-export async function getListings(): Promise<Listing[]> {
-  const rows = await db.listing.findMany({ orderBy: { createdAt: 'desc' } })
-  return rows.map(toListing)
-}
-
-export async function listingById(id: string): Promise<Listing | undefined> {
-  const r = await db.listing.findUnique({ where: { id } })
-  return r ? toListing(r) : undefined
-}
-
-/** נכסים נוספים מאותו פרויקט. */
-export async function sameProjectListings(
-  listing: Listing,
-): Promise<Listing[]> {
-  if (!listing.projectId) return []
-  const rows = await db.listing.findMany({
-    where: { projectId: listing.projectId, id: { not: listing.id } },
+/** הנכסים הציבוריים — יחידות שפורסמו למרקטפלייס. */
+export async function getPublishedUnits(): Promise<Unit[]> {
+  const rows = await db.unit.findMany({
+    where: { publishedToMarketplace: true },
+    orderBy: { createdAt: 'desc' },
   })
-  return rows.map(toListing)
+  return rows.map(toUnit)
+}
+
+export async function getUnitsAgent(agentId: string): Promise<Unit[]> {
+  const rows = await db.unit.findMany({
+    where: { agentId },
+    orderBy: { createdAt: 'desc' },
+  })
+  return rows.map(toUnit)
+}
+
+/** נכסים נוספים מאותו פרויקט (ציבוריים בלבד). */
+export async function sameProjectUnits(unit: Unit): Promise<Unit[]> {
+  if (!unit.projectId) return []
+  const rows = await db.unit.findMany({
+    where: {
+      projectId: unit.projectId,
+      id: { not: unit.id },
+      publishedToMarketplace: true,
+    },
+  })
+  return rows.map(toUnit)
 }
 
 /** נכסים דומים — אותה קטגוריה / עיר / סוג עסקה, מדורגים. */
-export async function similarListings(
-  listing: Listing,
+export async function similarUnits(
+  unit: Unit,
   excludeIds: string[] = [],
-): Promise<Listing[]> {
-  const rows = await db.listing.findMany({
+): Promise<Unit[]> {
+  const rows = await db.unit.findMany({
     where: {
-      id: { notIn: [listing.id, ...excludeIds] },
+      id: { notIn: [unit.id, ...excludeIds] },
+      publishedToMarketplace: true,
       OR: [
-        { category: listing.category },
-        { city: listing.address.city },
-        { dealType: listing.dealType },
+        { category: unit.category },
+        { city: unit.address.city },
+        { dealType: unit.dealType },
       ],
     },
   })
-  const score = (l: Listing) =>
-    (l.category === listing.category ? 2 : 0) +
-    (l.address.city === listing.address.city ? 1 : 0)
+  const score = (u: Unit) =>
+    (u.category === unit.category ? 2 : 0) +
+    (u.address.city === unit.address.city ? 1 : 0)
   return rows
-    .map(toListing)
+    .map(toUnit)
     .sort((a, b) => score(b) - score(a))
     .slice(0, 4)
 }
 
 /* ---------- לידים ---------- */
 
-const leadInclude = { activities: { orderBy: { at: 'asc' as const } } }
+/* הליד נטען תמיד עם המשתמש שלו — הזהות (שם/אימייל/טלפון) חיה שם */
+const leadInclude = {
+  activities: { orderBy: { at: 'asc' as const } },
+  user: true,
+}
 
 export async function getLeads(): Promise<Lead[]> {
   const rows = await db.lead.findMany({
@@ -155,6 +170,13 @@ export async function viewingsFor(sellerId: string): Promise<Viewing[]> {
   })
   return rows.map(toViewing)
 }
+export async function viewingsForClient(leadId: string): Promise<Viewing[]> {
+  const rows = await db.viewing.findMany({
+    where: { leadId },
+    orderBy: { scheduledAt: 'asc' },
+  })
+  return rows.map(toViewing)
+}
 
 /* ---------- הזמנות ועסקאות ---------- */
 
@@ -182,10 +204,53 @@ export async function dealById(id: string): Promise<Deal | undefined> {
   return r ? toDeal(r) : undefined
 }
 
-export async function dealForClient(clientId: string): Promise<Deal | undefined> {
+/** העסקה שרלוונטית לליד — לפי היחידה שלו, ואם אין לפי הפרויקט. */
+export async function dealForLead(
+  projectId?: string,
+  unitId?: string,
+): Promise<Deal | undefined> {
+  const r =
+    (unitId
+      ? await db.deal.findFirst({ where: { unitId }, include: dealInclude })
+      : null) ??
+    (projectId
+      ? await db.deal.findFirst({ where: { projectId }, include: dealInclude })
+      : null)
+  return r ? toDeal(r) : undefined
+}
+
+export async function dealForClient(
+  clientId: string,
+): Promise<Deal | undefined> {
   const r = await db.deal.findFirst({
     where: { clientId },
     include: dealInclude,
   })
   return r ? toDeal(r) : undefined
+}
+
+/**
+ * אישור תשלום ע"י המתווך (פרק 16.2) — עד שתהיה סליקה ללקוח, המתווך
+ * מאשר ידנית שהתשלום התקבל: סטטוס paid + חותמת מועד התשלום.
+ */
+export async function markPaymentPaid(paymentId: string): Promise<Payment> {
+  const row = await db.payment.update({
+    where: { id: paymentId },
+    data: { status: 'paid', paidAt: new Date() },
+  })
+  return toPayment(row)
+}
+
+/** יצירת סיור חדש — מחזירה את הסיור שנשמר, כולל ה-id שנוצר ב-DB. */
+export async function createViewing(form: FormData): Promise<Viewing> {
+  const row = await db.viewing.create({
+    data: {
+      sellerId: CURRENT_SELLER_ID,
+      leadId: String(form.get('lead')),
+      unitId: String(form.get('property')),
+      scheduledAt: new Date(`${form.get('date')}T${form.get('time')}:00Z`),
+      note: String(form.get('note') || '') || undefined,
+    },
+  })
+  return toViewing(row)
 }

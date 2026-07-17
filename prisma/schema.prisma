@@ -173,13 +173,6 @@ enum PaymentApprovalStatus {
   rejected
 }
 
-enum ConversationContextType {
-  direct
-  unit
-  deal
-  lead
-}
-
 enum PartnerApplicationStatus {
   pending
   approved
@@ -225,7 +218,9 @@ model User {
 
   lastActiveAt DateTime?
 
-  listings      Listing[]      @relation("ListingAgent")
+  /// הרחבת הליד של המשתמש (אם הוא לקוח שנכנס כליד) — PK משותף
+  lead          Lead?          @relation("LeadUser")
+  agentUnits    Unit[]         @relation("UnitAgent")
   assignedLeads Lead[]         @relation("LeadAssignee")
   leadActivity  LeadActivity[] @relation("ActivityBy")
   viewings      Viewing[]      @relation("ViewingSeller")
@@ -257,16 +252,6 @@ model Project {
   name        Json
   description Json?
 
-  country      Json
-  city         String
-  neighborhood String?
-  street       String?
-  lat          Float?
-  lng          Float?
-
-  cover   Json
-  gallery Json @default("[]")
-
   contractorId String
   contractor   Organization @relation(fields: [contractorId], references: [id])
 
@@ -275,30 +260,63 @@ model Project {
   leads        Lead[]
   invites      Invite[]
   deals        Deal[]
-  listings     Listing[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
 
+/// יחידה = הנכס עצמו: מלאי קבלן וגם נכס מרקטפלייס עצמאי (מיזוג Listing).
 model Unit {
-  id   String @id @default(cuid())
-  name String
+  id String @id @default(cuid())
+
+  /// שם/כותרת תצוגה — Localized כ-Json
+  title       Json
+  description Json
+
+  /// כתובת על היחידה (דנורמליזציה מכוונת — סינון מרקטפלייס ישיר)
+  country      Json
+  city         String
+  neighborhood String?
+  street       String?
+  lat          Float?
+  lng          Float?
 
   rooms Float
   sqm   Int
   floor String?
 
-  priceAmount   Int
-  priceCurrency Currency
+  dealType     DealType
+  category     ListingCategory
+  availability ListingAvailability
+
+  /// מחיר ריק = "צור קשר" בתצוגה (וגם סמנטיקת "נמכרה" בייבוא)
+  priceAmount   Int?
+  priceCurrency Currency?
   status        UnitStatus @default(available)
-  gallery       Json?
+
+  yearBuilt Int?
+  parking   Int?
+  /// תאריך ISO או "flexible"
+  entry     String?
+
+  badge    Json?
+  features Json  @default("[]")
+  gallery  Json?
+
+  /// פרסום למרקטפלייס — נכס ציבורי רק כשהדגל דולק
+  publishedToMarketplace Boolean @default(false)
 
   /// היסטוריית שינויי מחיר — PriceChange[] כ-Json
   priceHistory Json @default("[]")
 
-  projectId String
-  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  /// שיוך לפרויקט קבלן — ריק לנכס עצמאי (יד שנייה / השכרה של מוכר)
+  projectId String?
+  project   Project? @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  /// האחראי המוצג ליצירת קשר — קבלן או מוכר
+  agentId   String
+  agent     User      @relation("UnitAgent", fields: [agentId], references: [id])
+  agentRole AgentRole
 
   buyerId String?
   buyer   User?   @relation("UnitBuyer", fields: [buyerId], references: [id])
@@ -306,18 +324,18 @@ model Unit {
   /// השריון הפעיל (מונע מכירה כפולה)
   activeReservationId String?
 
-  reservations  Reservation[]
-  leads         Lead[]
-  viewings      Viewing[]
-  invites       Invite[]
-  deals         Deal[]
-  listings      Listing[]
-  conversations Conversation[]
+  reservations Reservation[]
+  leads        Lead[]
+  viewings     Viewing[]
+  invites      Invite[]
+  deals        Deal[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@index([projectId, status])
+  @@index([publishedToMarketplace, dealType, category, city])
+  @@index([priceAmount])
 }
 
 model Reservation {
@@ -327,8 +345,8 @@ model Reservation {
   unitId String
   unit   Unit   @relation(fields: [unitId], references: [id], onDelete: Cascade)
 
-  projectId String
-  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  projectId String?
+  project   Project? @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
   sellerId String
   seller   User   @relation("ReservationSeller", fields: [sellerId], references: [id])
@@ -347,64 +365,17 @@ model Reservation {
  * ---------- מרקטפלייס ----------
  */
 
-model Listing {
-  id          String @id @default(cuid())
-  title       Json
-  description Json
-
-  country      Json
-  city         String
-  neighborhood String?
-  street       String?
-  lat          Float?
-  lng          Float?
-
-  dealType     DealType
-  category     ListingCategory
-  availability ListingAvailability
-
-  priceAmount   Int
-  priceCurrency Currency
-
-  rooms     Float
-  sqm       Int
-  floor     String?
-  yearBuilt Int?
-  parking   Int?
-  /// תאריך ISO או "flexible"
-  entry     String?
-
-  badge    Json?
-  features Json  @default("[]")
-  images   Json  @default("[]")
-
-  projectId String?
-  project   Project? @relation(fields: [projectId], references: [id])
-  unitId    String?
-  unit      Unit?    @relation(fields: [unitId], references: [id])
-
-  agentId   String
-  agent     User      @relation("ListingAgent", fields: [agentId], references: [id])
-  agentRole AgentRole
-
-  viewings Viewing[]
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@index([dealType, category, city])
-  @@index([priceAmount])
-}
 
 /**
  * ---------- לידים ----------
  */
 
+/// ליד = הרחבה של User (PK משותף): כל ליד הוא קודם כל משתמש עם role לקוח.
+/// הזהות (שם/אימייל/טלפון) על המשתמש; כאן רק שדות מסע המכירה.
 model Lead {
-  id          String     @id @default(cuid())
-  name        String
-  email       String?
-  phone       String?
+  id   String @id
+  user User   @relation("LeadUser", fields: [id], references: [id], onDelete: Cascade)
+
   countryCode String?
   source      LeadSource
   stage       LeadStage  @default(new)
@@ -465,10 +436,8 @@ model Viewing {
   leadId String
   lead   Lead   @relation(fields: [leadId], references: [id], onDelete: Cascade)
 
-  unitId    String?
-  unit      Unit?    @relation(fields: [unitId], references: [id])
-  listingId String?
-  listing   Listing? @relation(fields: [listingId], references: [id])
+  unitId String?
+  unit   Unit?   @relation(fields: [unitId], references: [id])
 
   scheduledAt DateTime
   durationMin Int?
@@ -533,10 +502,9 @@ model Deal {
 
   clientSince DateTime?
 
-  documents     DealDocument[]
-  payments      Payment[]
-  approvals     PaymentApproval[]
-  conversations Conversation[]
+  documents DealDocument[]
+  payments  Payment[]
+  approvals PaymentApproval[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -609,18 +577,11 @@ model PaymentApproval {
 /// שיחה — מתחילה לרוב כליד מול מתווך, ותומכת בקבוצה:
 /// המתווך יכול לצרף משתתפים (קבלן, חברים של הליד) דרך ConversationParticipant.
 model Conversation {
-  id      String                  @id @default(cuid())
-  context ConversationContextType @default(direct)
+  id String @id @default(cuid())
 
-  /**
-   * קישור אופציונלי לישות ההקשר — לפי context
-   */
-  leadId String?
-  lead   Lead?   @relation(fields: [leadId], references: [id])
-  unitId String?
-  unit   Unit?   @relation(fields: [unitId], references: [id])
-  dealId String?
-  deal   Deal?   @relation(fields: [dealId], references: [id])
+  /// הליד שהוא מטרת השיחה — כל שיחה נסובה סביב ליד (הליד הוא גם User, PK משותף)
+  leadId String
+  lead   Lead   @relation(fields: [leadId], references: [id], onDelete: Cascade)
 
   participants ConversationParticipant[]
   messages     ChatMessage[]
@@ -668,9 +629,9 @@ model ChatMessage {
   senderId String
   sender   User   @relation("MessageSender", fields: [senderId], references: [id])
 
-  body        String
+  body         String
   /// MediaAsset[] כ-Json — כמו gallery
-  attachments Json   @default("[]")
+  attachments  Json   @default("[]")
   /// קישור אופציונלי של ההודעה לישות (ConversationContext כ-Json)
   linkedEntity Json?
 

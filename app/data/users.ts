@@ -105,16 +105,7 @@ export const USERS: User[] = [
     preferences: { locale: 'he', currency: 'ILS' },
     ...stamp('2026-06-12'),
   },
-  {
-    id: 'u-emma',
-    role: 'client',
-    status: 'invited',
-    name: 'Emma Wilson',
-    email: 'emma.w@gmail.com',
-    phone: '+44 7700 900123',
-    preferences: { locale: 'en', currency: 'GBP' },
-    ...stamp('2026-06-28'),
-  },
+  /* אמה וילסון היא ליד (lead-2) — ליד הוא משתמש (PK משותף), אז היא נוצרת דרך LEADS */
 ]
 
 /** שליפת משתמש לפי מזהה. */

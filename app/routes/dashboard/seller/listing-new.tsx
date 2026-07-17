@@ -1,8 +1,7 @@
 /*
- * עמוד ייעודי לפרסום מודעה חדשה (Listing) — פרק 6.
- * מחליף את מודל הפרסום הישן בפורטפוליו. תומך בקדם-מילוי מיחידת קבלן
- * דרך ?unit=<unitId> (הכפתור בטבלת התיק מנווט לכאן).
- * השליחה יוצרת Listing אמיתי ב-DB דרך ה-action ומחזירה לפורטפוליו עם באנר הצלחה.
+ * עמוד ייעודי לפרסום נכס למרקטפלייס — פרק 6 (אחרי מיזוג Listing→Unit).
+ * עם ?unit=<unitId> (מטבלת התיק): מעדכן את היחידה הקיימת בשדות השיווק
+ * ומדליק publishedToMarketplace. בלי — נוצרת יחידה עצמאית חדשה ומפורסמת.
  */
 import { useEffect } from 'react'
 import { Link, useFetcher, useNavigate } from 'react-router'
@@ -32,7 +31,7 @@ import { COUNTRIES, DEAL_TYPES, LISTING_CATEGORIES } from '~/data'
 import { projectById, unitById } from '~/server/queries.server'
 import { db } from '~/server/db.server'
 import { useLocale } from '~/i18n/locale'
-import type { ListingAvailability } from '~/types'
+import type { ListingAvailability, ListingCategory } from '~/types'
 import type { Prisma } from '../../../../generated/prisma/client'
 
 /** המוכרת המחוברת (עד שיהיה auth אמיתי). */
@@ -46,14 +45,16 @@ export async function loader({ request }: Route.LoaderArgs) {
   /* קדם-מילוי מיחידת קבלן (הגעה מטבלת התיק). */
   const unitId = new URL(request.url).searchParams.get('unit')
   const unit = unitId ? await unitById(unitId) : undefined
-  const project = unit ? await projectById(unit.projectId) : undefined
+  const project = unit?.projectId
+    ? await projectById(unit.projectId)
+    : undefined
   return { unit, project }
 }
 
 export async function action({ request }: Route.ActionArgs) {
   const form = await request.formData()
 
-  /* קישור ליחידת קבלן (אם הגענו עם ?unit=) — לצורך projectId/unitId ומטבע */
+  /* יחידת קבלן קיימת (אם הגענו עם ?unit=) — הפרסום מעדכן אותה */
   const unitId = new URL(request.url).searchParams.get('unit')
   const unit = unitId ? await unitById(unitId) : undefined
 
@@ -61,40 +62,59 @@ export async function action({ request }: Route.ActionArgs) {
   const title = str('title')
   const description = str('description')
 
-  /* אין עדיין העלאת קבצים אמיתית — נשמרת רשימת MediaAsset ריקה */
-  await db.listing.create({
-    data: {
-      /* דו-לשוני: עד שיהיה תרגום, אותו טקסט בשתי השפות */
-      title: { he: title, en: title },
-      description: { he: description, en: description },
-      country: COUNTRIES.IL as unknown as Prisma.InputJsonValue,
-      city: str('city'),
-      neighborhood: str('neighborhood') || null,
-      street: str('street') || null,
-      dealType: str('dealType') as 'sale' | 'rent',
-      category: str('category') as Prisma.ListingCreateInput['category'],
-      availability: str('availability') as ListingAvailability,
-      priceAmount: Number(form.get('price') ?? 0),
-      priceCurrency: unit?.price.currency ?? 'ILS',
-      rooms: Number(form.get('rooms') ?? 0),
-      sqm: Number(form.get('sqm') ?? 0),
-      floor: str('floor') || null,
-      yearBuilt: form.get('yearBuilt') ? Number(form.get('yearBuilt')) : null,
-      parking: form.get('parking') ? Number(form.get('parking')) : null,
-      entry: str('entry') || null,
-      features: str('features')
-        ? str('features')
-            .split(',')
-            .map((f) => f.trim())
-            .filter(Boolean)
-        : [],
-      images: [] as Prisma.InputJsonValue[],
-      projectId: unit?.projectId ?? null,
-      unitId: unit?.id ?? null,
-      agentId: CURRENT_SELLER_ID,
-      agentRole: 'seller',
-    },
-  })
+  /* השדות מהטופס — משותפים לעדכון יחידה קיימת וליצירת נכס עצמאי.
+     דו-לשוני: עד שיהיה תרגום בטופס, אותו טקסט בשתי השפות. */
+  const marketing = {
+    title: { he: title, en: title } as Prisma.InputJsonValue,
+    description: {
+      he: description,
+      en: description,
+    } as Prisma.InputJsonValue,
+    city: str('city'),
+    neighborhood: str('neighborhood') || null,
+    street: str('street') || null,
+    dealType: str('dealType') as 'sale' | 'rent',
+    category: str('category') as ListingCategory,
+    availability: str('availability') as ListingAvailability,
+    priceAmount: Number(form.get('price') ?? 0),
+    rooms: Number(form.get('rooms') ?? 0),
+    sqm: Number(form.get('sqm') ?? 0),
+    floor: str('floor') || null,
+    yearBuilt: form.get('yearBuilt') ? Number(form.get('yearBuilt')) : null,
+    parking: form.get('parking') ? Number(form.get('parking')) : null,
+    entry: str('entry') || null,
+    features: (str('features')
+      ? str('features')
+          .split(',')
+          .map((f) => f.trim())
+          .filter(Boolean)
+          .map((f) => ({ he: f, en: f }))
+      : []) as Prisma.InputJsonValue[],
+    /* המפרסם הופך לאיש הקשר, והנכס יוצא למרקטפלייס */
+    agentId: CURRENT_SELLER_ID,
+    agentRole: 'seller' as const,
+    publishedToMarketplace: true,
+  }
+
+  if (unit) {
+    await db.unit.update({
+      where: { id: unit.id },
+      data: {
+        ...marketing,
+        priceCurrency: unit.price?.currency ?? 'ILS',
+      },
+    })
+  } else {
+    /* נכס עצמאי חדש — ללא פרויקט. אין עדיין העלאת קבצים — גלריה ריקה */
+    await db.unit.create({
+      data: {
+        ...marketing,
+        country: COUNTRIES.IL as unknown as Prisma.InputJsonValue,
+        priceCurrency: 'ILS',
+        status: 'available',
+      },
+    })
+  }
 
   return { ok: true }
 }
@@ -166,7 +186,8 @@ export default function SellerNewListing({
           <span className='flex flex-wrap items-center gap-2'>
             {tt('nlLinkedUnit')}
             <Badge variant='primary'>
-              {unit.name} · {t(project?.name)}
+              {t(unit.title)}
+              {project && ` · ${t(project.name)}`}
             </Badge>
           </span>
         </Banner>
@@ -183,7 +204,7 @@ export default function SellerNewListing({
               <Input
                 name='title'
                 required
-                defaultValue={unit?.name}
+                defaultValue={unit ? t(unit.title) : undefined}
                 placeholder={tt('adTitlePlaceholder')}
               />
             </Field>
@@ -212,14 +233,14 @@ export default function SellerNewListing({
             </Field>
 
             <Field
-              label={`${tt('adPriceLabel')} (${unit?.price.currency ?? 'ILS'})`}
+              label={`${tt('adPriceLabel')} (${unit?.price?.currency ?? 'ILS'})`}
             >
               <Input
                 name='price'
                 type='number'
                 min={0}
                 required
-                defaultValue={unit?.price.amount}
+                defaultValue={unit?.price?.amount}
               />
             </Field>
 
@@ -242,17 +263,16 @@ export default function SellerNewListing({
           </SectionTitle>
           <div className='grid gap-4 sm:grid-cols-2'>
             <Field label={tt('nlCity')}>
-              <Input
-                name='city'
-                required
-                defaultValue={project?.address.city}
-              />
+              <Input name='city' required defaultValue={unit?.address.city} />
             </Field>
             <Field label={tt('nlNeighborhood')}>
-              <Input name='neighborhood' />
+              <Input
+                name='neighborhood'
+                defaultValue={unit?.address.neighborhood}
+              />
             </Field>
             <Field label={tt('nlStreet')} className='sm:col-span-2'>
-              <Input name='street' defaultValue={project?.address.street} />
+              <Input name='street' defaultValue={unit?.address.street} />
             </Field>
           </div>
         </Card>

@@ -1,6 +1,6 @@
 import type { Route } from './+types/home'
 import { Listings } from '../listings/listings'
-import { getListings } from '~/server/queries.server'
+import { getPublishedUnits } from '~/server/queries.server'
 
 export function meta({}: Route.MetaArgs) {
   return [
@@ -15,7 +15,7 @@ export function meta({}: Route.MetaArgs) {
 
 /** טוען את הנכסים מבסיס הנתונים עבור עמוד הבית */
 export async function loader({}: Route.LoaderArgs) {
-  const listings = await getListings()
+  const listings = await getPublishedUnits()
   return { listings }
 }
 

@@ -33,9 +33,9 @@ import { Logo } from '../components/logo'
 import { SiteFooter } from '../components/site-footer'
 import { SearchIcon, StarIcon } from 'lucide-react'
 
-import { ListingCard } from './listing-card'
-import LogIn from '~/components/premisions/logIn'
-import type { DealType, Listing, ListingCategory } from '~/types'
+import { UnitCard } from './unit-card'
+
+import type { DealType, ListingCategory, Unit } from '~/types'
 import { DEAL_TYPES, IMG, LISTING_CATEGORIES } from '~/data'
 import { useLocale } from '~/i18n/locale'
 import { Header } from '~/components/premisions/header'
@@ -195,7 +195,7 @@ function FloatingBlob({
 
 /* ---------- Page ---------- */
 /** מקבל את הנכסים מה-loader של הראוט (נטענים מבסיס הנתונים) */
-export function Listings({ listings }: { listings: Listing[] }) {
+export function Listings({ listings }: { listings: Unit[] }) {
   const { t, tt } = useLocale()
 
   const [category, setCategory] = useState<CategoryFilter>('all')
@@ -502,9 +502,9 @@ export function Listings({ listings }: { listings: Listing[] }) {
             >
               <AnimatePresence mode='popLayout'>
                 {filtered.map((l) => (
-                  <ListingCard
+                  <UnitCard
                     key={l.id}
-                    listing={l}
+                    unit={l}
                     compared={compareIds.includes(l.id)}
                     onCompareToggle={toggleCompare}
                   />
@@ -600,7 +600,7 @@ function CompareModal({
   open: boolean
   onClose: () => void
   ids: string[]
-  listings: Listing[]
+  listings: Unit[]
 }) {
   const { t, tt } = useLocale()
   const items = listings.filter((l) => ids.includes(l.id))
@@ -613,13 +613,18 @@ function CompareModal({
       label: tt('colPrice'),
       render: (l) => (
         <span className='font-bold text-gray-900'>
-          <Price value={l.price.amount} currency={l.price.currency} />
+          {l.price ? (
+            <Price value={l.price.amount} currency={l.price.currency} />
+          ) : (
+            tt('contactForPrice')
+          )}
         </span>
       ),
     },
     {
       label: tt('comparePerSqm'),
-      render: (l) => Math.round(l.price.amount / l.sqm).toLocaleString(),
+      render: (l) =>
+        l.price ? Math.round(l.price.amount / l.sqm).toLocaleString() : '—',
     },
     { label: tt('colRooms'), render: (l) => l.rooms },
     { label: tt('colSqm'), render: (l) => l.sqm },
@@ -649,7 +654,7 @@ function CompareModal({
               {items.map((l) => (
                 <th key={l.id} className='px-2 py-2 text-start align-top'>
                   <img
-                    src={l.images[0]?.url}
+                    src={l.gallery?.[0]?.url}
                     alt={t(l.title)}
                     className='mb-2 h-20 w-full rounded-lg object-cover'
                   />

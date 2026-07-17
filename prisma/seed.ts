@@ -8,7 +8,7 @@ import { PrismaPg } from '@prisma/adapter-pg'
 import { PrismaClient } from '../generated/prisma/client'
 import { ORGANIZATIONS, USERS, PARTNER_APPLICATIONS } from '../app/data/users'
 import { PROJECTS, RESERVATIONS } from '../app/data/projects'
-import { LISTINGS } from '../app/data/listings'
+import { UNITS } from '../app/data/units'
 import { LEADS } from '../app/data/leads'
 import { VIEWINGS } from '../app/data/viewings'
 import { INVITES, DEALS, PAYMENT_APPROVALS } from '../app/data/clients'
@@ -47,7 +47,6 @@ async function main() {
   await db.viewing.deleteMany()
   await db.leadActivity.deleteMany()
   await db.lead.deleteMany()
-  await db.listing.deleteMany()
   await db.reservation.deleteMany()
   await db.unit.deleteMany()
   await db.project.deleteMany()
@@ -77,50 +76,59 @@ async function main() {
       name: u.name,
       email: u.email,
       phone: u.phone,
-      avatar: u.avatar as object | undefined,
-      locale: u.preferences.locale,
-      currency: u.preferences.currency,
-      timeZone: u.preferences.timeZone,
-      permissions: u.permissions ?? [],
+      locale: u.preferences?.locale ?? 'he',
+      currency: u.preferences?.currency ?? 'ILS',
+      timeZone: u.preferences?.timeZone,
       organizationId: u.organizationId,
       lastActiveAt: date(u.lastActiveAt),
       ...stamps(u),
     })),
   })
 
-  /* פרויקטים ויחידות */
-  for (const p of PROJECTS) {
-    await db.project.create({
-      data: {
-        id: p.id,
-        status: p.status,
-        name: p.name,
-        description: p.description,
-        ...addr(p.address),
-        cover: p.cover as object,
-        gallery: p.gallery as object[],
-        contractorId: p.contractorId,
-        ...stamps(p),
-        units: {
-          create: p.units.map((u) => ({
-            id: u.id,
-            name: u.name,
-            rooms: u.rooms,
-            sqm: u.sqm,
-            floor: u.floor,
-            priceAmount: u.price.amount,
-            priceCurrency: u.price.currency,
-            status: u.status,
-            gallery: u.gallery as object[] | undefined,
-            priceHistory: (u.priceHistory ?? []) as object[],
-            buyerId: u.buyerId,
-            activeReservationId: u.reservationId,
-            ...stamps(u),
-          })),
-        },
-      },
-    })
-  }
+  /* פרויקטים */
+  await db.project.createMany({
+    data: PROJECTS.map((p) => ({
+      id: p.id,
+      status: p.status,
+      name: p.name,
+      description: p.description,
+      contractorId: p.contractorId,
+      ...stamps(p),
+    })),
+  })
+
+  /* יחידות — קולקשן אחד (מלאי קבלן + נכסים עצמאיים) */
+  await db.unit.createMany({
+    data: UNITS.map((u) => ({
+      id: u.id,
+      projectId: u.projectId,
+      title: u.title,
+      description: u.description,
+      ...addr(u.address),
+      agentId: u.agentId,
+      agentRole: u.agentRole,
+      publishedToMarketplace: u.publishedToMarketplace ?? false,
+      dealType: u.dealType,
+      category: u.category,
+      availability: u.availability,
+      rooms: u.rooms,
+      sqm: u.sqm,
+      floor: u.floor,
+      priceAmount: u.price?.amount,
+      priceCurrency: u.price?.currency,
+      status: u.status,
+      yearBuilt: u.yearBuilt,
+      parking: u.parking,
+      entry: u.entry,
+      badge: u.badge as object | undefined,
+      features: u.features as object[],
+      gallery: u.gallery as object[] | undefined,
+      priceHistory: (u.priceHistory ?? []) as object[],
+      buyerId: u.buyerId,
+      activeReservationId: u.reservationId,
+      ...stamps(u),
+    })),
+  })
 
   await db.reservation.createMany({
     data: RESERVATIONS.map((r) => ({
@@ -136,42 +144,25 @@ async function main() {
     })),
   })
 
-  /* מרקטפלייס */
-  await db.listing.createMany({
-    data: LISTINGS.map((l) => ({
+  /* לידים ופעילות — ליד הוא הרחבה של User (PK משותף):
+     קודם נוצר המשתמש-לקוח עם הזהות, ואז שורת המסע */
+  await db.user.createMany({
+    data: LEADS.map((l) => ({
       id: l.id,
-      title: l.title,
-      description: l.description,
-      ...addr(l.address),
-      dealType: l.dealType,
-      category: l.category,
-      availability: l.availability,
-      priceAmount: l.price.amount,
-      priceCurrency: l.price.currency,
-      rooms: l.rooms,
-      sqm: l.sqm,
-      floor: l.floor,
-      yearBuilt: l.yearBuilt,
-      parking: l.parking,
-      entry: l.entry,
-      badge: l.badge as object | undefined,
-      features: l.features as object[],
-      images: l.images as object[],
-      projectId: l.projectId,
-      unitId: l.unitId,
-      agentId: l.agentId,
-      agentRole: l.agentRole,
+      role: 'client' as const,
+      status: l.status,
+      name: l.name,
+      email: l.email,
+      phone: l.phone,
+      locale: 'he',
+      currency: l.budget?.currency ?? 'ILS',
       ...stamps(l),
     })),
   })
 
-  /* לידים ופעילות */
   await db.lead.createMany({
     data: LEADS.map((l) => ({
       id: l.id,
-      name: l.name,
-      email: l.email,
-      phone: l.phone,
       countryCode: l.countryCode,
       source: l.source,
       stage: l.stage,
@@ -210,7 +201,6 @@ async function main() {
       sellerId: v.sellerId,
       leadId: v.leadId,
       unitId: v.unitId,
-      listingId: v.listingId,
       scheduledAt: new Date(v.scheduledAt),
       durationMin: v.durationMin,
       status: v.status,
@@ -298,10 +288,7 @@ async function main() {
     await db.conversation.create({
       data: {
         id: c.id,
-        context: c.context.type,
-        unitId: c.context.type === 'unit' ? c.context.unitId : undefined,
-        dealId: c.context.type === 'deal' ? c.context.dealId : undefined,
-        leadId: c.context.type === 'lead' ? c.context.leadId : undefined,
+        leadId: c.leadId,
         lastMessageAt: msgs.at(-1) ? new Date(msgs.at(-1)!.createdAt) : undefined,
         ...stamps(c),
         participants: {
@@ -347,7 +334,6 @@ async function main() {
     users: await db.user.count(),
     projects: await db.project.count(),
     units: await db.unit.count(),
-    listings: await db.listing.count(),
     leads: await db.lead.count(),
     viewings: await db.viewing.count(),
     deals: await db.deal.count(),

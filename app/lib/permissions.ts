@@ -1,6 +1,7 @@
-import type { Permission, Role } from '~/types'
+import type { Role } from '~/types'
 
-const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
+/** הרשאות לפי תפקיד (פרק 2) — לא מוצמדות ליוזר; נגזרות מה-role בלבד. */
+const ROLE_PERMISSIONS: Record<Role, string[]> = {
   client: ['marketplace.view', 'chat.use', 'reports.view'],
   contractor: [
     'projects.manage',

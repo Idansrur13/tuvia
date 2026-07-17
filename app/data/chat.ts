@@ -1,16 +1,17 @@
 /*
- * שיחות צ׳אט דמו (פרק 9) — מכסות את כל ארבעת התפקידים:
- * לקוח (u-ron), קבלן (u-yossi / u-mike), מתווך (u-michal / u-david-seller), אדמין (u-admin).
- * כל שיחה מקושרת להקשר: עסקה / יחידה / ליד / ישירה.
+ * שיחות צ׳אט דמו (פרק 9) — כל שיחה נסובה סביב ליד (leadId).
+ * הליד הוא גם משתמש (PK משותף) ולרוב משתתף בשיחה עצמה;
+ * לעיתים הצוות משוחח עליו בלעדיו (conv-2, conv-5).
+ * דרך הליד נשלפת גם היחידה שהוא מתעניין בה (lead.unitId).
  */
 import type { ChatMessage, Conversation } from '~/types'
 
 export const MESSAGES: ChatMessage[] = [
-  /* conv-1: לקוח ↔ מתווך — סביב עסקה */
+  /* conv-1: ליד ↔ מתווכת — אבי רוזן מול מיכל */
   {
     id: 'msg-1',
     conversationId: 'conv-1',
-    senderId: 'u-ron',
+    senderId: 'lead-1',
     body: 'היי מיכל, מתי אפשר לתאם סיור בדירה?',
     delivery: 'read',
     createdAt: '2026-07-08T09:00:00Z',
@@ -19,7 +20,7 @@ export const MESSAGES: ChatMessage[] = [
     id: 'msg-2',
     conversationId: 'conv-1',
     senderId: 'u-michal',
-    body: 'שלום רון! אפשר מחר ב-17:00, מתאים?',
+    body: 'שלום אבי! אפשר מחר ב-17:00, מתאים?',
     delivery: 'read',
     createdAt: '2026-07-08T09:05:00Z',
     linkedEntity: { type: 'unit', unitId: 'A-12' },
@@ -27,18 +28,18 @@ export const MESSAGES: ChatMessage[] = [
   {
     id: 'msg-3',
     conversationId: 'conv-1',
-    senderId: 'u-ron',
+    senderId: 'lead-1',
     body: 'מושלם, נתראה מחר 🙏',
     delivery: 'delivered',
     createdAt: '2026-07-08T09:07:00Z',
   },
 
-  /* conv-2: מתווך ↔ קבלן — סביב שריון יחידה */
+  /* conv-2: מתווך ↔ קבלן — על הליד קרלוס והשריון של היחידה שלו */
   {
     id: 'msg-4',
     conversationId: 'conv-2',
     senderId: 'u-david-seller',
-    body: 'Mike, can you approve the reservation on Unit 142?',
+    body: 'Mike, can you approve the reservation on Unit 142 for Carlos?',
     delivery: 'delivered',
     createdAt: '2026-07-06T11:00:00Z',
     linkedEntity: { type: 'unit', unitId: 'M-142' },
@@ -52,12 +53,12 @@ export const MESSAGES: ChatMessage[] = [
     createdAt: '2026-07-06T12:20:00Z',
   },
 
-  /* conv-3: קבוצתית — לקוח + קבלן + מתווך סביב עסקה */
+  /* conv-3: קבוצתית — הליד דוד לוי + קבלן + מתווכת סביב העסקה שלו */
   {
     id: 'msg-6',
     conversationId: 'conv-3',
     senderId: 'u-yossi',
-    body: 'רון, החוזה המעודכן הועלה למערכת. מיכל — תוכלי לעבור איתו על הנספח?',
+    body: 'דוד, החוזה המעודכן הועלה למערכת. מיכל — תוכלי לעבור איתו על הנספח?',
     delivery: 'read',
     createdAt: '2026-07-07T10:00:00Z',
     linkedEntity: { type: 'deal', dealId: 'deal-1' },
@@ -73,23 +74,24 @@ export const MESSAGES: ChatMessage[] = [
   {
     id: 'msg-8',
     conversationId: 'conv-3',
-    senderId: 'u-ron',
+    senderId: 'lead-3',
     body: 'תודה לשניכם! מחכה לעדכון.',
     delivery: 'delivered',
     createdAt: '2026-07-07T18:40:00Z',
   },
 
-  /* conv-4: אדמין ↔ קבלן — ישירה */
+  /* conv-4: קבלן ↔ ליד — מייק מול אמה על הפנטהאוז */
   {
     id: 'msg-9',
     conversationId: 'conv-4',
-    senderId: 'u-admin',
-    body: 'יוסי, פרויקט Ocean View ממתין לאישור פרסום. חסרות תמונות גלריה.',
+    senderId: 'u-mike',
+    body: 'Hi Emma, the penthouse is available for a viewing this week — interested?',
     delivery: 'delivered',
     createdAt: '2026-07-09T07:30:00Z',
+    linkedEntity: { type: 'unit', unitId: 'C-15' },
   },
 
-  /* conv-5: קבלן ↔ מתווך — סביב ליד חם */
+  /* conv-5: מתווכת ↔ קבלן — על הליד החם דוד לוי, בלעדיו */
   {
     id: 'msg-10',
     conversationId: 'conv-5',
@@ -115,10 +117,9 @@ const lastOf = (conversationId: string) =>
 export const CONVERSATIONS: Conversation[] = [
   {
     id: 'conv-1',
-    context: { type: 'deal', dealId: 'deal-1' },
-    isGroup: false,
+    leadId: 'lead-1',
     participants: [
-      { userId: 'u-ron', role: 'client', lastReadMessageId: 'msg-3' },
+      { userId: 'lead-1', role: 'client', lastReadMessageId: 'msg-3' },
       { userId: 'u-michal', role: 'seller', lastReadMessageId: 'msg-2' },
     ],
     lastMessage: lastOf('conv-1'),
@@ -127,8 +128,7 @@ export const CONVERSATIONS: Conversation[] = [
   },
   {
     id: 'conv-2',
-    context: { type: 'unit', unitId: 'M-142' },
-    isGroup: false,
+    leadId: 'lead-4',
     participants: [
       {
         userId: 'u-david-seller',
@@ -143,10 +143,9 @@ export const CONVERSATIONS: Conversation[] = [
   },
   {
     id: 'conv-3',
-    context: { type: 'deal', dealId: 'deal-1' },
-    isGroup: true,
+    leadId: 'lead-3',
     participants: [
-      { userId: 'u-ron', role: 'client', lastReadMessageId: 'msg-8' },
+      { userId: 'lead-3', role: 'client', lastReadMessageId: 'msg-8' },
       { userId: 'u-yossi', role: 'contractor', lastReadMessageId: 'msg-7' },
       { userId: 'u-michal', role: 'seller', lastReadMessageId: 'msg-8' },
     ],
@@ -156,11 +155,10 @@ export const CONVERSATIONS: Conversation[] = [
   },
   {
     id: 'conv-4',
-    context: { type: 'direct' },
-    isGroup: false,
+    leadId: 'lead-2',
     participants: [
-      { userId: 'u-admin', role: 'admin', lastReadMessageId: 'msg-9' },
-      { userId: 'u-yossi', role: 'contractor' },
+      { userId: 'u-mike', role: 'contractor', lastReadMessageId: 'msg-9' },
+      { userId: 'lead-2', role: 'client' },
     ],
     lastMessage: lastOf('conv-4'),
     createdAt: '2026-07-09T07:30:00Z',
@@ -168,8 +166,7 @@ export const CONVERSATIONS: Conversation[] = [
   },
   {
     id: 'conv-5',
-    context: { type: 'lead', leadId: 'lead-3' },
-    isGroup: false,
+    leadId: 'lead-3',
     participants: [
       { userId: 'u-michal', role: 'seller', lastReadMessageId: 'msg-11' },
       { userId: 'u-yossi', role: 'contractor', lastReadMessageId: 'msg-11' },

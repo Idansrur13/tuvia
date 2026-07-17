@@ -130,7 +130,7 @@ export const DEALS: Deal[] = [
     id: 'deal-2',
     unitId: 'C-08',
     projectId: 'larnaca-bay',
-    clientId: 'u-emma',
+    clientId: 'lead-2',
     contractorId: 'org-bluebay',
     sellerId: 'u-michal',
     stage: 'orderSent',

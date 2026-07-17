@@ -1,19 +1,16 @@
 /*
- * יישום ייבוא חכם על ה-DB — ממיר את פלט מנוע הייבוא (מספרים/מחרוזות
- * גולמיים) לצורות המודל (Money / Localized / Address) וכותב ל-Postgres.
+ * יישום ייבוא חכם על ה-DB — מקבל ImportedProject[] (פרויקטים ויחידות מלאים
+ * עם שדות ביקורת) וכותב ל-Postgres לפי סוג השינוי של כל יחידה.
  * (לשעבר מאגר בזיכרון; getProjects עבר ל-queries.server.)
  */
-import { COUNTRIES, L, img } from '~/data'
-import type { Country, Currency, ImportResult, ImportSummary } from '~/types'
+import { COUNTRIES, L } from '~/data'
+import type { Address, Country, ImportResult, ImportSummary } from '~/types'
 import { db } from './db.server'
 
 export { getProjects } from './queries.server'
 
-/** בעלים ברירת מחדל לפרויקטים חדשים מהייבוא, עד שיהיה auth אמיתי. */
-const DEFAULT_CONTRACTOR_ID = 'org-tchelet'
-
 /** מתאים שם מדינה (בעברית/אנגלית) לאובייקט Country, או בונה ברירת מחדל. */
-function resolveCountry(name: string): Country {
+export function resolveCountry(name: string): Country {
   const key = name.trim().toLowerCase()
   const found = Object.values(COUNTRIES).find(
     (c) => c.name.he === name.trim() || c.name.en.toLowerCase() === key,
@@ -21,7 +18,7 @@ function resolveCountry(name: string): Country {
   return found ?? { code: '??', name: L(name, name), flag: '🌍' }
 }
 
-function slugify(name: string) {
+export function slugify(name: string) {
   return (
     name
       .toLowerCase()
@@ -30,8 +27,20 @@ function slugify(name: string) {
   )
 }
 
+/** כתובת הדומיין → עמודות שטוחות של Unit. */
+const addr = (a: Address) => ({
+  country: a.country as object,
+  city: a.city,
+  neighborhood: a.neighborhood,
+  street: a.street,
+  lat: a.point?.lat,
+  lng: a.point?.lng,
+})
+
 /** מיישם תוצאת ייבוא מאושרת על ה-DB ומחזיר סיכום. */
-export async function applyImport(result: ImportResult): Promise<ImportSummary> {
+export async function applyImport(
+  result: ImportResult,
+): Promise<ImportSummary> {
   const summary: ImportSummary = {
     newProjects: 0,
     newUnits: 0,
@@ -41,26 +50,19 @@ export async function applyImport(result: ImportResult): Promise<ImportSummary> 
   }
 
   for (const parsed of result.projects) {
-    const currency = (parsed.currency || 'USD') as Currency
-
-    let project = parsed.projectId
-      ? await db.project.findUnique({
-          where: { id: parsed.projectId },
-          include: { units: true },
-        })
-      : null
+    let project = await db.project.findUnique({
+      where: { id: parsed.id },
+      include: { units: true },
+    })
 
     if (!project) {
       project = await db.project.create({
         data: {
-          id: `${slugify(parsed.name)}-${Date.now().toString(36)}`,
-          contractorId: DEFAULT_CONTRACTOR_ID,
+          id: parsed.id,
+          contractorId: parsed.contractorId,
           status: 'pending',
-          name: L(parsed.name, parsed.name),
-          country: resolveCountry(parsed.country) as object,
-          city: parsed.city,
-          cover: img('photo-1486406146926-c627a92ad1ab') as object,
-          gallery: [],
+          name: parsed.name as object,
+          description: (parsed.description as object | undefined) ?? undefined,
         },
         include: { units: true },
       })
@@ -68,29 +70,36 @@ export async function applyImport(result: ImportResult): Promise<ImportSummary> 
     }
 
     for (const u of parsed.units) {
-      const existing = project.units.find(
-        (e) => e.id === u.unitId || e.name === u.name,
-      )
+      const existing = project.units.find((e) => e.id === u.id)
 
       if (!existing) {
         await db.unit.create({
           data: {
-            ...(u.unitId ? { id: u.unitId } : {}),
+            id: u.id,
             projectId: project.id,
-            name: u.name,
-            rooms: u.rooms ?? 0,
-            sqm: u.sqm ?? 0,
-            priceAmount: u.price ?? u.oldPrice ?? 0,
-            priceCurrency: currency,
-            status: u.price === null ? 'sold' : 'available',
+            title: u.title as object,
+            description: u.description as object,
+            ...addr(u.address),
+            agentId: u.agentId,
+            agentRole: u.agentRole,
+            dealType: u.dealType,
+            category: u.category,
+            availability: u.availability,
+            features: (u.features ?? []) as object[],
+            rooms: u.rooms,
+            sqm: u.sqm,
+            floor: u.floor,
+            priceAmount: u.price?.amount,
+            priceCurrency: u.price?.currency,
+            status: u.price ? 'available' : 'sold',
           },
         })
-        if (u.price === null) summary.sold++
-        else summary.newUnits++
+        if (u.price) summary.newUnits++
+        else summary.sold++
         continue
       }
 
-      if (u.price === null) {
+      if (!u.price) {
         if (existing.status !== 'sold') {
           await db.unit.update({
             where: { id: existing.id },
@@ -100,18 +109,21 @@ export async function applyImport(result: ImportResult): Promise<ImportSummary> 
         } else {
           summary.unchanged++
         }
-      } else if (u.price !== existing.priceAmount) {
+      } else if (u.price.amount !== existing.priceAmount) {
         const history = (existing.priceHistory as object[]) ?? []
         await db.unit.update({
           where: { id: existing.id },
           data: {
-            priceAmount: u.price,
+            priceAmount: u.price.amount,
+            priceCurrency: u.price.currency,
             priceHistory: [
               ...history,
               {
                 at: new Date().toISOString(),
-                from: { amount: existing.priceAmount, currency: existing.priceCurrency },
-                to: { amount: u.price, currency: existing.priceCurrency },
+                from: existing.priceAmount != null && existing.priceCurrency
+                  ? { amount: existing.priceAmount, currency: existing.priceCurrency }
+                  : undefined,
+                to: u.price,
                 changedBy: 'import',
               },
             ],

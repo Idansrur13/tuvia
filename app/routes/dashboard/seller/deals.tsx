@@ -12,11 +12,19 @@ import {
   EmptyState,
   PageHeader,
   PillSelect,
+  Select,
   StatCard,
   Text,
   cn,
 } from '../../../components/ui'
-import type { Deal, DealStage, PaymentApproval, Project, Unit, User } from '~/types'
+import type {
+  Deal,
+  DealStage,
+  PaymentApproval,
+  Project,
+  Unit,
+  User,
+} from '~/types'
 import {
   DEAL_STAGE_META,
   PAYMENT_APPROVAL_META,
@@ -29,7 +37,7 @@ import { db } from '~/server/db.server'
 import { useLocale } from '~/i18n/locale'
 
 /** המוכרת המחוברת (עד שיהיה auth אמיתי). */
-const CURRENT_SELLER_ID = 'u-michal'
+export const CURRENT_SELLER_ID = 'u-michal'
 
 export function meta({}: Route.MetaArgs) {
   return [{ title: 'עסקאות ועמלות | Deals' }]
@@ -105,9 +113,7 @@ export default function SellerDeals({ loaderData }: Route.ComponentProps) {
   const setStage = (id: string, stage: DealStage) =>
     setDeals((prev) =>
       prev.map((d) =>
-        d.id === id
-          ? { ...d, stage, updatedAt: new Date().toISOString() }
-          : d,
+        d.id === id ? { ...d, stage, updatedAt: new Date().toISOString() } : d,
       ),
     )
 
@@ -214,14 +220,14 @@ export default function SellerDeals({ loaderData }: Route.ComponentProps) {
                     </td>
                     <td className='px-3 py-3'>
                       <p className='text-xs font-medium text-gray-700'>
-                        {unit?.name ?? deal.unitId}
+                        {t(unit?.title) ?? deal.unitId}
                       </p>
                       <Text as='span' variant='small'>
-                        {project?.address.country.flag} {t(project?.name)}
+                        {project?.units.length ?? 0} {t(project?.name)}
                       </Text>
                     </td>
                     <td className='px-3 py-3'>
-                      <PillSelect
+                      <Select
                         value={deal.stage}
                         onChange={(e) =>
                           setStage(deal.id, e.target.value as DealStage)
@@ -232,7 +238,7 @@ export default function SellerDeals({ loaderData }: Route.ComponentProps) {
                             {t(DEAL_STAGE_META[s].label)}
                           </option>
                         ))}
-                      </PillSelect>
+                      </Select>
                       <div className='mt-1.5 h-1 w-24 overflow-hidden rounded-full bg-gray-100'>
                         <div
                           className={cn(
@@ -271,9 +277,7 @@ export default function SellerDeals({ loaderData }: Route.ComponentProps) {
                             </Text>
                           </div>
                         ) : (
-                          <Badge variant='neutral'>
-                            {tt('commOutWindow')}
-                          </Badge>
+                          <Badge variant='neutral'>{tt('commOutWindow')}</Badge>
                         )
                       ) : (
                         '—'
@@ -317,37 +321,39 @@ export default function SellerDeals({ loaderData }: Route.ComponentProps) {
           </Text>
         </div>
         <ul className='divide-y divide-gray-50'>
-          {paymentApprovals.filter((a) =>
-            deals.some((d) => d.id === a.dealId),
-          ).map((approval) => {
-            const meta = PAYMENT_APPROVAL_META[approval.status]
-            const deal = deals.find((d) => d.id === approval.dealId)
-            const client = deal?.clientId ? usersById[deal.clientId] : undefined
-            return (
-              <li
-                key={approval.id}
-                className='flex flex-wrap items-center gap-x-4 gap-y-1 px-4 py-3'
-              >
-                <div className='min-w-0 flex-1'>
-                  <p className='text-sm font-semibold text-gray-900'>
-                    {formatMoney(approval.amount, locale)}
-                    {client && (
-                      <span className='font-normal text-gray-500'>
-                        {' '}
-                        · {client.name}
-                      </span>
-                    )}
-                  </p>
-                  <Text as='p' variant='small'>
-                    {formatDate(approval.createdAt)}
-                    {approval.confirmationRef &&
-                      ` · ${tt('payRefLabel')}: ${approval.confirmationRef}`}
-                  </Text>
-                </div>
-                <Badge variant={meta.badge}>{t(meta.label)}</Badge>
-              </li>
-            )
-          })}
+          {paymentApprovals
+            .filter((a) => deals.some((d) => d.id === a.dealId))
+            .map((approval) => {
+              const meta = PAYMENT_APPROVAL_META[approval.status]
+              const deal = deals.find((d) => d.id === approval.dealId)
+              const client = deal?.clientId
+                ? usersById[deal.clientId]
+                : undefined
+              return (
+                <li
+                  key={approval.id}
+                  className='flex flex-wrap items-center gap-x-4 gap-y-1 px-4 py-3'
+                >
+                  <div className='min-w-0 flex-1'>
+                    <p className='text-sm font-semibold text-gray-900'>
+                      {formatMoney(approval.amount, locale)}
+                      {client && (
+                        <span className='font-normal text-gray-500'>
+                          {' '}
+                          · {client.name}
+                        </span>
+                      )}
+                    </p>
+                    <Text as='p' variant='small'>
+                      {formatDate(approval.createdAt)}
+                      {approval.confirmationRef &&
+                        ` · ${tt('payRefLabel')}: ${approval.confirmationRef}`}
+                    </Text>
+                  </div>
+                  <Badge variant={meta.badge}>{t(meta.label)}</Badge>
+                </li>
+              )
+            })}
         </ul>
       </Card>
     </div>

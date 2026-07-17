@@ -11,6 +11,7 @@ import type {
   MediaAsset,
   Timestamps,
 } from './common'
+import type { DealType, ListingAvailability, ListingCategory } from './listing'
 
 /** סטטוס יחידה. מקור האמת לסנכרון המלאי (פרק 8.1). */
 export type UnitStatus = 'available' | 'reserved' | 'inProcess' | 'sold'
@@ -29,20 +30,37 @@ export interface PriceChange {
 
 export interface Unit extends Timestamps {
   id: Id
-  projectId: Id
+  projectId?: Id
+  agentId: Id
+  agentRole: 'contractor' | 'seller'
+  publishedToMarketplace?: boolean
   /** שם/מספר יחידה כפי שמוצג ("דירה 12, קומה 3"). */
-  name: string
+  title: Localized
+  description: Localized
+  address: Address
   rooms: number
   sqm: number
   floor?: string
-  price: Money
+  price?: Money
   status: UnitStatus
-  gallery?: MediaAsset[]
-  /** מזהה הרוכש (לקוח) אם הוקצה. */
-  buyerId?: Id
   /** שריון פעיל, אם קיים (מונע מכירה כפולה — פרק 8.1). */
   reservationId?: Id
+  buyerId?: Id
   priceHistory?: PriceChange[]
+
+  dealType: DealType
+  category: ListingCategory
+  availability: ListingAvailability
+
+  yearBuilt?: number
+  parking?: number
+  /** תאריך אכלוס/כניסה — ISO או "flexible". */
+  entry?: ISODate | 'flexible'
+  /** תגית שיווקית ("בלעדיות", "חדש מקבלן"). */
+  badge?: Localized
+  features: Localized[]
+  gallery?: MediaAsset[]
+  /** האחראי המוצג ליצירת קשר — קבלן או מוכר. */
 }
 
 export interface Project extends Timestamps {
@@ -53,9 +71,6 @@ export interface Project extends Timestamps {
   /** שם בינלאומי — מתורגם (פרק 14). */
   name: Localized
   description?: Localized
-  address: Address
-  cover: MediaAsset
-  gallery: MediaAsset[]
   units: Unit[]
 }
 
@@ -69,7 +84,8 @@ export type ReservationStatus =
 export interface Reservation extends Timestamps {
   id: Id
   unitId: Id
-  projectId: Id
+  /** נגזר מהיחידה; ריק ליחידה עצמאית (ללא פרויקט). */
+  projectId?: Id
   /** המוכר שביקש את השריון. */
   sellerId: Id
   /** הלקוח שעבורו שוריינה היחידה (אם ידוע). */

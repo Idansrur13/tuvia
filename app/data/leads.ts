@@ -9,6 +9,9 @@ import { money, stamp } from './util'
 const CURATED_LEADS: Lead[] = [
   {
     id: 'lead-1',
+    role: 'client',
+    status: 'active',
+
     name: 'אבי רוזן',
     email: 'avi@gmail.com',
     phone: '050-1234567',
@@ -36,6 +39,9 @@ const CURATED_LEADS: Lead[] = [
   {
     id: 'lead-2',
     name: 'Emma Wilson',
+    role: 'client',
+    status: 'active',
+
     email: 'emma.w@gmail.com',
     phone: '+44 7700 900123',
     countryCode: 'GB',
@@ -72,6 +78,9 @@ const CURATED_LEADS: Lead[] = [
   {
     id: 'lead-3',
     name: 'דוד לוי',
+    role: 'client',
+    status: 'active',
+    email: 'sadgadsfg.w@gmail.com',
     phone: '052-9876543',
     countryCode: 'IL',
     source: 'referral',
@@ -98,6 +107,8 @@ const CURATED_LEADS: Lead[] = [
     id: 'lead-4',
     name: 'Carlos Mendez',
     email: 'carlos.m@gmail.com',
+    role: 'client',
+    status: 'active',
     phone: '+1 305 555 0134',
     countryCode: 'US',
     source: 'campaign',
@@ -126,6 +137,8 @@ const CURATED_LEADS: Lead[] = [
     id: 'lead-5',
     name: 'נעמה כץ',
     email: 'naama.k@gmail.com',
+    role: 'client',
+    status: 'active',
     phone: '053-7778888',
     countryCode: 'IL',
     source: 'manual',
@@ -169,26 +182,77 @@ function mulberry32(seed: number) {
 const BASE = Date.parse('2026-07-09T10:00:00Z')
 const DAY = 86_400_000
 const rnd = mulberry32(2026)
-const pick = <T,>(arr: readonly T[]): T => arr[Math.floor(rnd() * arr.length)]
+const pick = <T>(arr: readonly T[]): T => arr[Math.floor(rnd() * arr.length)]
 
 const FIRST_NAMES = [
-  'נועה', 'איתי', 'מאיה', 'עומר', 'שירה', 'דניאל', 'תמר', 'אלון', 'יעל',
-  'אורי', 'רוני', 'ליאור', 'הילה', 'גיא', 'עדי',
-  'Sophie', 'Liam', 'Olivia', 'Noah', 'Mia', 'Lucas', 'Emma', 'Ethan',
+  'נועה',
+  'איתי',
+  'מאיה',
+  'עומר',
+  'שירה',
+  'דניאל',
+  'תמר',
+  'אלון',
+  'יעל',
+  'אורי',
+  'רוני',
+  'ליאור',
+  'הילה',
+  'גיא',
+  'עדי',
+  'Sophie',
+  'Liam',
+  'Olivia',
+  'Noah',
+  'Mia',
+  'Lucas',
+  'Emma',
+  'Ethan',
 ]
 const LAST_NAMES = [
-  'לוי', 'כהן', 'מזרחי', 'פרץ', 'ביטון', 'אברהם', 'פרידמן', 'שפירא',
-  'אזולאי', 'Smith', 'Brown', 'Garcia', 'Müller', 'Rossi', 'Dubois',
+  'לוי',
+  'כהן',
+  'מזרחי',
+  'פרץ',
+  'ביטון',
+  'אברהם',
+  'פרידמן',
+  'שפירא',
+  'אזולאי',
+  'Smith',
+  'Brown',
+  'Garcia',
+  'Müller',
+  'Rossi',
+  'Dubois',
 ]
 const COUNTRY_POOL = ['IL', 'IL', 'IL', 'US', 'GB', 'FR', 'DE', 'CY']
 const SOURCE_POOL: LeadSource[] = [
-  'marketplace', 'marketplace', 'aiAssistant', 'referral', 'campaign', 'manual',
+  'marketplace',
+  'marketplace',
+  'aiAssistant',
+  'referral',
+  'campaign',
+  'manual',
 ]
 const STAGE_POOL: LeadStage[] = [
-  'new', 'new', 'contacted', 'contacted', 'meeting', 'negotiation', 'won', 'lost',
+  'new',
+  'new',
+  'contacted',
+  'contacted',
+  'meeting',
+  'negotiation',
+  'won',
+  'lost',
 ]
 const ASSIGNEE_POOL = ['u-yossi', 'u-michal', 'u-david-seller', 'u-mike']
-const PROJECT_POOL = ['tlv-towers', 'tlv-towers', 'larnaca-bay', 'miami-ocean', '']
+const PROJECT_POOL = [
+  'tlv-towers',
+  'tlv-towers',
+  'larnaca-bay',
+  'miami-ocean',
+  '',
+]
 
 const BUDGET_BY_PROJECT: Record<string, [Currency, number, number]> = {
   'tlv-towers': ['ILS', 2_500_000, 8_000_000],
@@ -198,7 +262,12 @@ const BUDGET_BY_PROJECT: Record<string, [Currency, number, number]> = {
 }
 
 const STAGE_SCORE: Record<LeadStage, number> = {
-  new: 35, contacted: 45, meeting: 60, negotiation: 80, won: 100, lost: 10,
+  new: 35,
+  contacted: 45,
+  meeting: 60,
+  negotiation: 80,
+  won: 100,
+  lost: 10,
 }
 
 const GENERATED_LEADS: Lead[] = Array.from({ length: 75 }, (_, i) => {
@@ -245,6 +314,8 @@ const GENERATED_LEADS: Lead[] = Array.from({ length: 75 }, (_, i) => {
   return {
     id: `lead-g${i + 1}`,
     name: `${pick(FIRST_NAMES)} ${pick(LAST_NAMES)}`,
+    role: 'client',
+    status: 'active',
     email: `lead${i + 1}@example.com`,
     phone: `05${Math.floor(rnd() * 3)}-${1_000_000 + Math.floor(rnd() * 8_999_999)}`,
     countryCode: pick(COUNTRY_POOL),

@@ -8,19 +8,38 @@ import { zodOutputFormat } from '@anthropic-ai/sdk/helpers/zod'
 import { z } from 'zod'
 
 import { ensureApiKey } from './anthropic.server'
-import { getProjects } from './store.server'
-import type { ImportResult, ParsedProject, ParsedUnit } from '~/types'
+import { getProjects, resolveCountry, slugify } from './store.server'
+import { L } from '~/data'
+import type {
+  Address,
+  Currency,
+  ImportResult,
+  ImportedProject,
+  ImportedUnit,
+  Unit,
+} from '~/types'
+
+/** ברירות מחדל ליחידות חדשות מהייבוא, עד שיהיה auth אמיתי. */
+const DEFAULT_AGENT_ID = 'u-yossi'
+const DEFAULT_CONTRACTOR_ID = 'org-tchelet'
 
 const MAX_FILE_BYTES = 20 * 1024 * 1024 // מגבלת ה-API היא 32MB לבקשה
 
 /* ---------- סכמת הפלט של המודל ---------- */
+
+const AiLocalizedSchema = z.object({
+  he: z.string().describe('בעברית'),
+  en: z.string().describe('באנגלית'),
+})
 
 const AiUnitSchema = z.object({
   unitId: z
     .string()
     .nullable()
     .describe('מזהה יחידה קיימת מהמערכת אם זוהתה התאמה, אחרת null'),
-  name: z.string().describe('שם/תיאור היחידה כפי שמופיע בקובץ'),
+  title: AiLocalizedSchema.describe(
+    'שם/תיאור היחידה בשתי השפות — תרגם/תעתק אם הקובץ בשפה אחת',
+  ),
   rooms: z.number().nullable(),
   sqm: z.number().nullable(),
   price: z
@@ -35,7 +54,9 @@ const AiProjectSchema = z.object({
     .string()
     .nullable()
     .describe('מזהה פרויקט קיים מהמערכת אם זו התאמה, אחרת null = פרויקט חדש'),
-  name: z.string(),
+  name: AiLocalizedSchema.describe(
+    'שם הפרויקט בשתי השפות — תרגם/תעתק אם הקובץ בשפה אחת',
+  ),
   city: z.string(),
   country: z.string().describe('שם המדינה בעברית'),
   currency: z.string().describe('קוד מטבע ISO כמו ILS / EUR / USD'),
@@ -104,16 +125,16 @@ async function fileToContentBlock(file: File): Promise<ContentBlock> {
 async function buildSystemPrompt() {
   const existing = (await getProjects()).map((p) => ({
     id: p.id,
-    name: p.name.he,
-    city: p.address.city,
-    country: p.address.country.name.he,
-    currency: p.units[0]?.price.currency ?? 'USD',
+    name: p.name,
+    city: p.units[0]?.address.city ?? '',
+    country: p.units[0]?.address.country.name ?? '',
+    currency: p.units[0]?.price?.currency ?? 'USD',
     units: p.units.map((u) => ({
       id: u.id,
-      name: u.name,
+      title: u.title,
       rooms: u.rooms,
       sqm: u.sqm,
-      price: u.price.amount,
+      price: u.price?.amount ?? null,
       status: u.status,
     })),
   }))
@@ -131,7 +152,8 @@ ${JSON.stringify(existing, null, 1)}
 4. מחיר: מספר בלבד, בלי סימני מטבע ובלי מפרידי אלפים. אם למחיר אין ערך, מסומן "-", ריק, או כתוב "נמכר"/"sold" החזר null. משמעות null היא שהיחידה נמכרה.
 5. currency: קוד ISO. הסק מהסימנים בקובץ (₪=ILS, €=EUR, $=USD) או מהמדינה. לפרויקט קיים השתמש במטבע הקיים שלו.
 6. country: שם המדינה בעברית. אם לא ברור הסק מהעיר.
-7. אל תמציא נתונים. שדה שלא מופיע בקובץ null.`
+7. אל תמציא נתונים. שדה שלא מופיע בקובץ null.
+8. שמות (name/title): החזר תמיד עברית ואנגלית. אם הקובץ בשפה אחת — תרגם או תעתק לשנייה.`
 }
 
 export type AiImportOutcome =
@@ -213,8 +235,11 @@ export async function parseFileWithAi(file: File): Promise<AiImportOutcome> {
  * ה-AI מחזיר נתונים מנורמלים; את סיווג השינויים (חדש / עדכון מחיר / נמכר)
  * אנחנו מחשבים כאן באופן דטרמיניסטי מול המאגר לא סומכים על המודל בזה.
  */
-async function annotateChanges(ai: z.infer<typeof AiImportSchema>): Promise<ImportResult> {
+async function annotateChanges(
+  ai: z.infer<typeof AiImportSchema>,
+): Promise<ImportResult> {
   const stored = await getProjects()
+  const now = new Date().toISOString()
   const summary = {
     newProjects: 0,
     newUnits: 0,
@@ -223,31 +248,45 @@ async function annotateChanges(ai: z.infer<typeof AiImportSchema>): Promise<Impo
     unchanged: 0,
   }
 
-  const projects: ParsedProject[] = ai.projects.map((p) => {
+  const projects: ImportedProject[] = ai.projects.map((p) => {
     const existingProject =
       stored.find((s) => s.id === p.matchedProjectId) ??
       stored.find(
         (s) =>
-          s.name.he.trim() === p.name.trim() ||
-          s.name.en.trim() === p.name.trim(),
+          s.name.he.trim() === p.name.he.trim() ||
+          s.name.en.trim() === p.name.en.trim(),
       )
 
     if (!existingProject) summary.newProjects++
 
-    const units: ParsedUnit[] = p.units.map((u) => {
+    const projectId =
+      existingProject?.id ?? `${slugify(p.name.en)}-${Date.now().toString(36)}`
+    const currency = (existingProject?.units[0]?.price?.currency ??
+      p.currency ??
+      'USD') as Currency
+    /* כתובת בסיס ליחידות חדשות — מהיחידות הקיימות או ממה שהמודל זיהה */
+    const baseAddress: Address = existingProject?.units[0]?.address ?? {
+      country: resolveCountry(p.country),
+      city: p.city,
+    }
+
+    const units: ImportedUnit[] = p.units.map((u, ui) => {
       const existingUnit = existingProject?.units.find(
-        (e) => e.id === u.unitId || e.name === u.name,
+        (e) =>
+          e.id === u.unitId ||
+          e.title.he === u.title.he ||
+          e.title.en === u.title.en,
       )
 
-      let change: ParsedUnit['change']
-      let oldPrice: number | undefined
+      let change: ImportedUnit['change']
+      let oldPrice: ImportedUnit['oldPrice']
 
       if (!existingUnit) {
         change = u.price === null ? 'sold' : 'new'
         if (u.price === null) summary.sold++
         else summary.newUnits++
       } else if (u.price === null) {
-        oldPrice = existingUnit.price.amount
+        oldPrice = existingUnit.price
         if (existingUnit.status !== 'sold') {
           change = 'sold'
           summary.sold++
@@ -255,35 +294,59 @@ async function annotateChanges(ai: z.infer<typeof AiImportSchema>): Promise<Impo
           change = 'unchanged'
           summary.unchanged++
         }
-      } else if (u.price !== existingUnit.price.amount) {
+      } else if (u.price !== existingUnit.price?.amount) {
         change = 'priceChanged'
-        oldPrice = existingUnit.price.amount
+        oldPrice = existingUnit.price
         summary.priceChanges++
       } else {
         change = 'unchanged'
         summary.unchanged++
       }
 
+      /* יחידה קיימת = בסיס מהמאגר; חדשה = ברירות מחדל של מלאי קבלן */
+      const base: Unit = existingUnit ?? {
+        id: u.unitId ?? `${projectId}-u${ui}-${Date.now().toString(36)}`,
+        projectId,
+        title: u.title,
+        description: L('', ''),
+        address: baseAddress,
+        agentId: DEFAULT_AGENT_ID,
+        agentRole: 'contractor',
+        dealType: 'sale',
+        category: 'newFromContractor',
+        availability: 'underConstruction',
+        features: [],
+        rooms: u.rooms ?? 0,
+        sqm: u.sqm ?? 0,
+        status: 'available',
+        createdAt: now,
+        updatedAt: now,
+      }
+
       return {
-        unitId: existingUnit?.id ?? u.unitId,
-        name: u.name,
-        rooms: u.rooms,
-        sqm: u.sqm,
-        price: u.price,
-        buyer: u.buyer,
+        ...base,
+        title: u.title,
+        rooms: u.rooms ?? base.rooms,
+        sqm: u.sqm ?? base.sqm,
+        price: u.price != null ? { amount: u.price, currency } : undefined,
+        status: u.price === null ? 'sold' : base.status,
+        updatedAt: now,
         change,
         oldPrice,
+        buyer: u.buyer ?? undefined,
       }
     })
 
     return {
-      projectId: existingProject?.id ?? null,
-      isNew: !existingProject,
-      name: existingProject?.name.he ?? p.name,
-      city: existingProject?.address.city ?? p.city,
-      country: existingProject?.address.country.name.he ?? p.country,
-      currency: existingProject?.units[0]?.price.currency ?? p.currency,
+      id: projectId,
+      contractorId: existingProject?.contractorId ?? DEFAULT_CONTRACTOR_ID,
+      status: existingProject?.status ?? 'pending',
+      name: existingProject?.name ?? p.name,
+      description: existingProject?.description,
       units,
+      createdAt: existingProject?.createdAt ?? now,
+      updatedAt: now,
+      isNew: !existingProject,
     }
   })
 

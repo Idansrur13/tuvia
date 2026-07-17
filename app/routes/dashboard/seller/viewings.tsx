@@ -25,35 +25,37 @@ import {
   Text,
   TextLink,
 } from '../../../components/ui'
-import type { Lead, Listing, Project, Unit, Viewing, ViewingStatus } from '~/types'
+import type { Lead, Project, Unit, Viewing, ViewingStatus } from '~/types'
 import { VIEWING_STATUS_META } from '~/data'
-import { getLeads, getListings, getProjects, viewingsFor } from '~/server/queries.server'
+import {
+  createViewing,
+  getLeads,
+  getProjects,
+  getUnitsAgent,
+  viewingsFor,
+} from '~/server/queries.server'
 import { useLocale } from '~/i18n/locale'
 import type { DictKey } from '~/i18n/dictionary'
-import { LeadDrawer } from '~/components/leads/lead-drawer'
-import { AnimatePresence } from 'motion/react'
+import { Form, useFetcher, useNavigate } from 'react-router'
+import { CURRENT_SELLER_ID } from './deals'
 
 /** המוכרת המחוברת (עד שיהיה auth אמיתי). */
-const CURRENT_SELLER_ID = 'u-michal'
 
 export function meta({}: Route.MetaArgs) {
   return [{ title: 'סיורים וביקורים | Viewings' }]
 }
 
 export async function loader() {
-  const [viewings, leads, projects, listings] = await Promise.all([
+  const [viewings, leads, projects, units] = await Promise.all([
     viewingsFor(CURRENT_SELLER_ID),
     getLeads(),
     getProjects(),
-    getListings(),
+    getUnitsAgent(CURRENT_SELLER_ID),
   ])
 
   /* מפות lookup לצירופים בכרטיסי הסיורים — נבנות פעם אחת בצד השרת */
   const leadsById: Record<string, Lead> = Object.fromEntries(
     leads.map((l) => [l.id, l]),
-  )
-  const listingsById: Record<string, Listing> = Object.fromEntries(
-    listings.map((l) => [l.id, l]),
   )
   const unitsById: Record<string, Unit> = Object.fromEntries(
     projects.flatMap((p) => p.units.map((u) => [u.id, u])),
@@ -66,7 +68,6 @@ export async function loader() {
     viewings,
     projects,
     leadsById,
-    listingsById,
     unitsById,
     projectsById,
     myLeads: leads.filter(
@@ -75,8 +76,14 @@ export async function loader() {
         l.stage !== 'won' &&
         l.stage !== 'lost',
     ),
-    myListings: listings.filter((l) => l.agentId === CURRENT_SELLER_ID),
+    myUnits: units,
   }
+}
+
+export async function action({ request }: Route.ActionArgs) {
+  const form = await request.formData()
+  const viewing = await createViewing(form)
+  return { viewing }
 }
 
 /* מפות ה-lookup שה-loader מחזיר, מועברות לכרטיס הסיור */
@@ -120,19 +127,15 @@ function ViewingCard({
   const { t, formatDate, formatTime } = useLocale()
   const lead = lookups.leadsById[viewing.leadId]
   const unit = viewing.unitId ? lookups.unitsById[viewing.unitId] : undefined
-  const listing = viewing.listingId
-    ? lookups.listingsById[viewing.listingId]
+
+  const project = unit?.projectId
+    ? lookups.projectsById[unit.projectId]
     : undefined
-  const project = unit ? lookups.projectsById[unit.projectId] : undefined
-  const propertyName = unit?.name ?? (listing ? t(listing.title) : '—')
+  const propertyName = t(unit?.title)
   const done =
     viewing.status === 'completed' ||
     viewing.status === 'cancelled' ||
     viewing.status === 'noShow'
-
-  const patchLead = (id: string, patch: Partial<Lead>) =>
-    console.log('leadddddd patchLead', patch)
-  // setLeads((prev) => prev.map((l) => (l.id === id ? { ...l, ...patch } : l)))
 
   return (
     <Card
@@ -182,7 +185,7 @@ function ViewingCard({
           {t(VIEWING_STATUS_META[viewing.status].label)}
         </Badge>
       ) : (
-        <PillSelect
+        <Select
           value={viewing.status}
           onChange={(e) => onStatusChange(e.target.value as ViewingStatus)}
         >
@@ -191,7 +194,7 @@ function ViewingCard({
               {t(VIEWING_STATUS_META[s].label)}
             </option>
           ))}
-        </PillSelect>
+        </Select>
       )}
     </Card>
   )
@@ -199,12 +202,12 @@ function ViewingCard({
 
 export default function SellerViewings({ loaderData }: Route.ComponentProps) {
   const { t, tt } = useLocale()
+  const navigate = useNavigate()
   const now = new Date()
-  const [selectedLead, setSelectedLead] = useState<Lead | null>(null)
-
   const [viewings, setViewings] = useState<Viewing[]>(loaderData.viewings)
   const [modalOpen, setModalOpen] = useState(false)
   const [created, setCreated] = useState(false)
+  const fetcher = useFetcher()
 
   /* ---------- KPI ---------- */
   const todayCount = viewings.filter(
@@ -246,33 +249,15 @@ export default function SellerViewings({ loaderData }: Route.ComponentProps) {
     )
 
   /* ---------- תיאום סיור חדש ---------- */
-  const { myLeads, myListings } = loaderData
+  const { myLeads, myUnits } = loaderData
   const availableUnits = loaderData.projects
     .filter((p) => p.status === 'published')
     .flatMap((p) => p.units.map((u) => ({ project: p, unit: u })))
     .filter(({ unit }) => unit.status !== 'sold')
 
-  const createViewing = (form: FormData) => {
-    const property = String(form.get('property'))
-    const [kind, refId] = property.split(':')
-    const nowIso = new Date().toISOString()
-    const viewing: Viewing = {
-      id: `vw-${Date.now()}`,
-      sellerId: CURRENT_SELLER_ID,
-      leadId: String(form.get('lead')),
-      unitId: kind === 'unit' ? refId : undefined,
-      listingId: kind === 'listing' ? refId : undefined,
-      scheduledAt: `${form.get('date')}T${form.get('time')}:00Z`,
-      status: 'scheduled',
-      note: String(form.get('note') || '') || undefined,
-      createdAt: nowIso,
-      updatedAt: nowIso,
-    }
-    setViewings((prev) =>
-      [...prev, viewing].sort((a, b) =>
-        a.scheduledAt.localeCompare(b.scheduledAt),
-      ),
-    )
+  const createViewingToDb = (form: FormData) => {
+    fetcher.submit(form, { method: 'post' })
+
     setModalOpen(false)
     setCreated(true)
     setTimeout(() => setCreated(false), 4000)
@@ -342,7 +327,7 @@ export default function SellerViewings({ loaderData }: Route.ComponentProps) {
                     key={v.id}
                     viewing={v}
                     lookups={loaderData}
-                    selectedLead={(l) => setSelectedLead(l)}
+                    selectedLead={(l) => navigate(`/dashboard/leads/${l.id}`)}
                     onStatusChange={(s) => setStatus(v.id, s)}
                   />
                 ))}
@@ -351,86 +336,90 @@ export default function SellerViewings({ loaderData }: Route.ComponentProps) {
           </section>
         )
       })}
+      <ScheduleViewing
+        modalOpen={modalOpen}
+        myLeads={myLeads}
+        myUnits={myUnits}
+        setModalClose={() => setModalOpen(false)}
+        createViewing={(f) => createViewingToDb(f)}
+      />
+    </div>
+  )
+}
 
-      {/* ---------- מודל תיאום סיור ---------- */}
-      <Modal
-        open={modalOpen}
-        onClose={() => setModalOpen(false)}
-        title={tt('vwNew')}
+export function ScheduleViewing({
+  modalOpen,
+  myLeads,
+  myUnits,
+  setModalClose,
+  createViewing,
+}: {
+  modalOpen: boolean
+  myLeads: Lead[]
+  myUnits: Unit[]
+  setModalClose: () => void
+  createViewing: (f: FormData) => void
+}) {
+  const { t, tt } = useLocale()
+  const now = new Date()
+
+  return (
+    <Modal open={modalOpen} onClose={setModalClose} title={tt('vwNew')}>
+      <Form
+        className='space-y-4'
+        onSubmit={(e) => {
+          const fd = new FormData(e.currentTarget)
+          createViewing(fd)
+        }}
       >
-        <form
-          className='space-y-4'
-          onSubmit={(e) => {
-            e.preventDefault()
-            createViewing(new FormData(e.currentTarget))
-          }}
-        >
-          <Field label={tt('vwPickLead')}>
-            <Select name='lead' required defaultValue={myLeads[0]?.id}>
-              {myLeads.map((l) => (
+        <Field label={tt('vwPickLead')}>
+          <Select name='lead' required defaultValue={myLeads[0]?.id}>
+            {myLeads.map((l) => (
+              <option key={l.id} value={l.id}>
+                {l.name}
+                {l.phone && ` · ${l.phone}`}
+              </option>
+            ))}
+          </Select>
+        </Field>
+
+        <Field label={tt('vwPickProperty')}>
+          <Select name='property' required>
+            <optgroup label={tt('myMarketed')}>
+              {myUnits.map((l) => (
                 <option key={l.id} value={l.id}>
-                  {l.name}
-                  {l.phone && ` · ${l.phone}`}
+                  {t(l.title)}
                 </option>
               ))}
-            </Select>
+            </optgroup>
+          </Select>
+        </Field>
+
+        <div className='grid grid-cols-2 gap-3'>
+          <Field label={tt('vwDate')}>
+            <Input
+              name='date'
+              type='date'
+              required
+              defaultValue={now.toISOString().slice(0, 10)}
+            />
           </Field>
-
-          <Field label={tt('vwPickProperty')}>
-            <Select name='property' required>
-              <optgroup label={tt('contractorInventory')}>
-                {availableUnits.map(({ project, unit }) => (
-                  <option key={unit.id} value={`unit:${unit.id}`}>
-                    {unit.name} — {t(project.name)}
-                  </option>
-                ))}
-              </optgroup>
-              <optgroup label={tt('myMarketed')}>
-                {myListings.map((l) => (
-                  <option key={l.id} value={`listing:${l.id}`}>
-                    {t(l.title)}
-                  </option>
-                ))}
-              </optgroup>
-            </Select>
+          <Field label={tt('vwTime')}>
+            <Input name='time' type='time' required defaultValue='10:00' />
           </Field>
+        </div>
 
-          <div className='grid grid-cols-2 gap-3'>
-            <Field label={tt('vwDate')}>
-              <Input
-                name='date'
-                type='date'
-                required
-                defaultValue={now.toISOString().slice(0, 10)}
-              />
-            </Field>
-            <Field label={tt('vwTime')}>
-              <Input name='time' type='time' required defaultValue='10:00' />
-            </Field>
-          </div>
+        <Field label={tt('vwNote')}>
+          <Input name='note' placeholder={tt('addNotePh')} />
+        </Field>
 
-          <Field label={tt('vwNote')}>
-            <Input name='note' placeholder={tt('addNotePh')} />
-          </Field>
-
-          <div className='flex justify-end gap-2 pt-2'>
-            <Button variant='ghost' onClick={() => setModalOpen(false)}>
-              {tt('cancel')}
-            </Button>
-            <Button type='submit'>{tt('vwNew')}</Button>
-          </div>
-        </form>
-      </Modal>
-      <AnimatePresence>
-        {selectedLead && (
-          <LeadDrawer
-            lead={selectedLead}
-            currentUserId={'bg'}
-            onClose={() => setSelectedLead(null)}
-            onUpdate={(patch) => {}}
-          />
-        )}
-      </AnimatePresence>
-    </div>
+        <div className='flex justify-end gap-2 pt-2'>
+          <Button variant='ghost' onClick={setModalClose}>
+            {tt('cancel')}
+          </Button>
+          <Button type='submit'>{tt('vwNew')}</Button>
+        </div>
+      </Form>
+    </Modal>
   )
 }

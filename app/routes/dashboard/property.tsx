@@ -17,6 +17,7 @@ import {
   ExternalLinkIcon,
   FlameIcon,
   HammerIcon,
+  ImageOffIcon,
   KeyRoundIcon,
   LayersIcon,
   RulerIcon,
@@ -44,12 +45,12 @@ import {
 } from '~/data'
 import {
   getLeads,
-  listingById,
   projectById,
+  unitById,
   userById,
   viewingsFor,
 } from '~/server/queries.server'
-import type { Lead, Listing, Project, Unit, Viewing } from '~/types'
+import type { Lead, Project, Unit, Viewing } from '~/types'
 import { useLocale } from '~/i18n/locale'
 
 export function meta({}: Route.MetaArgs) {
@@ -57,16 +58,16 @@ export function meta({}: Route.MetaArgs) {
 }
 
 export async function loader({ params }: Route.LoaderArgs) {
-  const listing = (await listingById(params.id)) ?? null
+  const unit = (await unitById(params.id)) ?? null
   const [project, agent, allLeads, viewings] = await Promise.all([
-    listing?.projectId ? projectById(listing.projectId) : undefined,
-    listing?.agentId ? userById(listing.agentId) : undefined,
+    unit?.projectId ? projectById(unit.projectId) : undefined,
+    unit?.agentId ? userById(unit.agentId) : undefined,
     getLeads(),
     // הסיורים של המתווך האחראי — מסוננים לנכס בצד הלקוח
-    listing?.agentId ? viewingsFor(listing.agentId) : [],
+    unit?.agentId ? viewingsFor(unit.agentId) : [],
   ])
   return {
-    listing,
+    unit,
     project: project ?? null,
     agent: agent ?? null,
     leads: allLeads,
@@ -76,41 +77,50 @@ export async function loader({ params }: Route.LoaderArgs) {
 
 type DashRole = 'contractor' | 'seller'
 
-/** לידים שמתעניינים בנכס — לפי היחידה או הפרויקט המקושרים. */
-const leadsForListing = (listing: Listing, allLeads: Lead[]): Lead[] =>
-  allLeads.filter(
-    (l) =>
-      (listing.unitId && l.unitId === listing.unitId) ||
-      (listing.projectId && l.projectId === listing.projectId),
-  ).slice(0, 6)
+/** לידים שמתעניינים בנכס — לפי היחידה עצמה או הפרויקט שלה. */
+const leadsForUnit = (unit: Unit, allLeads: Lead[]): Lead[] =>
+  allLeads
+    .filter(
+      (l) =>
+        l.unitId === unit.id ||
+        (unit.projectId && l.projectId === unit.projectId),
+    )
+    .slice(0, 6)
 
 /* ---------- גלריה ---------- */
 
-function Gallery({ listing }: { listing: Listing }) {
+function Gallery({ unit }: { unit: Unit }) {
   const { t } = useLocale()
   const [active, setActive] = useState(0)
-  const img = listing.images[active] ?? listing.images[0]
+  const images = unit.gallery ?? []
+  const img = images[active] ?? images[0]
 
   return (
     <div className='space-y-2'>
       <div className='relative overflow-hidden rounded-2xl'>
-        <img
-          src={img?.url}
-          alt={t(listing.title)}
-          className='h-72 w-full object-cover sm:h-96'
-        />
+        {img ? (
+          <img
+            src={img.url}
+            alt={t(unit.title)}
+            className='h-72 w-full object-cover sm:h-96'
+          />
+        ) : (
+          <div className='flex h-72 w-full items-center justify-center bg-gray-100 text-gray-300 sm:h-96'>
+            <ImageOffIcon className='h-10 w-10' />
+          </div>
+        )}
         <div className='absolute inset-x-0 bottom-0 h-24 bg-linear-to-t from-black/50 to-transparent' />
         <div className='absolute inset-s-3 top-3 flex gap-2'>
-          {listing.badge && <Badge variant='overlay'>{t(listing.badge)}</Badge>}
+          {unit.badge && <Badge variant='overlay'>{t(unit.badge)}</Badge>}
           <Badge variant='overlay'>
-            {listing.dealType === 'sale' ? '🏷️' : '🔑'}{' '}
-            {listing.dealType === 'sale' ? 'למכירה' : 'להשכרה'}
+            {unit.dealType === 'sale' ? '🏷️' : '🔑'}{' '}
+            {unit.dealType === 'sale' ? 'למכירה' : 'להשכרה'}
           </Badge>
         </div>
       </div>
-      {listing.images.length > 1 && (
+      {images.length > 1 && (
         <div className='flex gap-2 overflow-x-auto pb-1 scrollbar-none'>
-          {listing.images.map((im, i) => (
+          {images.map((im, i) => (
             <button
               key={im.id}
               type='button'
@@ -220,10 +230,10 @@ function InterestedLeads({ leads }: { leads: Lead[] }) {
 /* ---------- פאנל קבלן ---------- */
 
 function ContractorPanel({
-  listing,
+  unit,
   project,
 }: {
-  listing: Listing
+  unit: Unit
   project: Project | null
 }) {
   const { t, tt, locale, formatDate } = useLocale()
@@ -233,9 +243,6 @@ function ContractorPanel({
   const percent = project.units.length
     ? Math.round((sold / project.units.length) * 100)
     : 0
-  const linkedUnit: Unit | undefined = project.units.find(
-    (u) => u.id === listing.unitId,
-  )
 
   return (
     <div className='space-y-4'>
@@ -281,25 +288,25 @@ function ContractorPanel({
           </Text>
         </div>
         <ul className='max-h-72 divide-y divide-gray-50 overflow-y-auto'>
-          {project.units.map((unit) => {
-            const meta = UNIT_STATUS_META[unit.status]
+          {project.units.map((u) => {
+            const meta = UNIT_STATUS_META[u.status]
             return (
               <li
-                key={unit.id}
+                key={u.id}
                 className={`flex items-center gap-3 p-3 ${
-                  unit.id === listing.unitId ? 'bg-primary-50/50' : ''
+                  u.id === unit.id ? 'bg-primary-50/50' : ''
                 }`}
               >
                 <div className='min-w-0 flex-1'>
                   <p className='truncate text-sm font-semibold text-gray-900'>
-                    {unit.name}
+                    {t(u.title)}
                   </p>
                   <Text as='p' variant='small'>
-                    {unit.rooms} {tt('colRooms')} · {unit.sqm} {tt('colSqm')}
+                    {u.rooms} {tt('colRooms')} · {u.sqm} {tt('colSqm')}
                   </Text>
                 </div>
                 <p className='whitespace-nowrap text-sm font-semibold text-gray-900'>
-                  {formatMoney(unit.price, locale)}
+                  {u.price ? formatMoney(u.price, locale) : '—'}
                 </p>
                 <Badge variant={meta.badge}>{t(meta.label)}</Badge>
               </li>
@@ -308,7 +315,7 @@ function ContractorPanel({
         </ul>
       </Card>
 
-      {/* היסטוריית מחירים של היחידה המקושרת */}
+      {/* היסטוריית מחירים של היחידה */}
       <Card>
         <div className='mb-3 flex items-center gap-2'>
           <LayersIcon className='h-4 w-4 text-primary-500' />
@@ -316,9 +323,9 @@ function ContractorPanel({
             {tt('propPriceHistory')}
           </Heading>
         </div>
-        {linkedUnit?.priceHistory?.length ? (
+        {unit.priceHistory?.length ? (
           <ul className='space-y-2'>
-            {linkedUnit.priceHistory.map((ch, i) => (
+            {unit.priceHistory.map((ch, i) => (
               <li
                 key={i}
                 className='flex flex-wrap items-center justify-between gap-2 rounded-xl bg-gray-50 px-3 py-2 text-sm'
@@ -346,35 +353,35 @@ function ContractorPanel({
 /* ---------- פאנל מתווך ---------- */
 
 function SellerPanel({
-  listing,
+  unit,
   allViewings,
   allLeads,
 }: {
-  listing: Listing
+  unit: Unit
   allViewings: Viewing[]
   allLeads: Lead[]
 }) {
   const { t, tt, locale, formatDate, formatTime } = useLocale()
   const [copied, setCopied] = useState(false)
 
-  const viewings = allViewings.filter(
-    (v) =>
-      v.listingId === listing.id ||
-      (listing.unitId && v.unitId === listing.unitId),
-  ).sort((a, b) => a.scheduledAt.localeCompare(b.scheduledAt))
+  const viewings = allViewings
+    .filter((v) => v.unitId === unit.id)
+    .sort((a, b) => a.scheduledAt.localeCompare(b.scheduledAt))
 
-  const commission =
-    listing.dealType === 'sale'
+  /* עמלה משוערת: 2% ממחיר מכירה, חודש שכירות בהשכרה. אין מחיר — אין הערכה */
+  const commission = unit.price
+    ? unit.dealType === 'sale'
       ? {
-          amount: Math.round(listing.price.amount * 0.02),
-          currency: listing.price.currency,
+          amount: Math.round(unit.price.amount * 0.02),
+          currency: unit.price.currency,
         }
-      : { amount: listing.price.amount, currency: listing.price.currency }
+      : { amount: unit.price.amount, currency: unit.price.currency }
+    : undefined
 
   const share = async () => {
     try {
       await navigator.clipboard.writeText(
-        `${location.origin}/property/${listing.id}`,
+        `${location.origin}/property/${unit.id}`,
       )
       setCopied(true)
       setTimeout(() => setCopied(false), 3000)
@@ -390,7 +397,7 @@ function SellerPanel({
       {/* עמלה + פעולות */}
       <StatCard
         label={tt('propEstCommission')}
-        value={formatMoney(commission, locale)}
+        value={commission ? formatMoney(commission, locale) : '—'}
         hint={tt('propCommissionHint')}
         icon={<KeyRoundIcon className='h-5 w-5' />}
       />
@@ -399,7 +406,7 @@ function SellerPanel({
           <Share2Icon className='me-1.5 inline h-4 w-4' />
           {tt('propShare')}
         </Button>
-        <Link to={`/property/${listing.id}`}>
+        <Link to={`/property/${unit.id}`}>
           <Button size='sm' variant='outline'>
             <ExternalLinkIcon className='me-1.5 inline h-4 w-4' />
             {tt('propViewPublic')}
@@ -463,7 +470,7 @@ export default function DashboardProperty({
   loaderData,
 }: Route.ComponentProps) {
   const { t, tt, locale } = useLocale()
-  const { listing, project, agent, leads: allLeads, viewings } = loaderData
+  const { unit, project, agent, leads: allLeads, viewings } = loaderData
 
   /* התפקיד נשמר ע"י פריסת הדשבורד — עד שיחובר auth. */
   const [role, setRole] = useState<DashRole>('contractor')
@@ -472,7 +479,7 @@ export default function DashboardProperty({
     if (saved === 'seller' || saved === 'contractor') setRole(saved)
   }, [])
 
-  if (!listing) {
+  if (!unit) {
     return (
       <EmptyState
         title={tt('propNotFound')}
@@ -482,20 +489,17 @@ export default function DashboardProperty({
     )
   }
 
-  const perSqm = listing.sqm
-    ? Math.round(listing.price.amount / listing.sqm)
-    : 0
-  const leads = leadsForListing(listing, allLeads)
+  const perSqm =
+    unit.price && unit.sqm ? Math.round(unit.price.amount / unit.sqm) : 0
+  const leads = leadsForUnit(unit, allLeads)
 
   return (
     <div className='space-y-6'>
       <PageHeader
-        title={t(listing.title)}
-        subtitle={`${listing.address.country.flag} ${listing.address.city}${
-          listing.address.neighborhood
-            ? `, ${listing.address.neighborhood}`
-            : ''
-        }${listing.address.street ? ` · ${listing.address.street}` : ''}`}
+        title={t(unit.title)}
+        subtitle={`${unit.address.country.flag} ${unit.address.city}${
+          unit.address.neighborhood ? `, ${unit.address.neighborhood}` : ''
+        }${unit.address.street ? ` · ${unit.address.street}` : ''}`}
         icon={<BuildingIcon className='h-5 w-5' />}
       />
 
@@ -503,7 +507,7 @@ export default function DashboardProperty({
         {/* עמודה ראשית — גלריה ופרטים */}
         <div className='space-y-4 lg:col-span-2'>
           <Card className='p-3'>
-            <Gallery listing={listing} />
+            <Gallery unit={unit} />
           </Card>
 
           {/* מחיר */}
@@ -513,14 +517,16 @@ export default function DashboardProperty({
                 {tt('propAskedPrice')}
               </Text>
               <p className='text-3xl font-extrabold tracking-tight text-gray-900'>
-                {formatMoney(listing.price, locale)}
+                {unit.price
+                  ? formatMoney(unit.price, locale)
+                  : tt('contactForPrice')}
               </p>
             </div>
-            {perSqm > 0 && (
+            {perSqm > 0 && unit.price && (
               <Badge variant='neutral'>
                 {tt('comparePerSqm')}:{' '}
                 {formatMoney(
-                  { amount: perSqm, currency: listing.price.currency },
+                  { amount: perSqm, currency: unit.price.currency },
                   locale,
                 )}
               </Badge>
@@ -536,51 +542,51 @@ export default function DashboardProperty({
               <DetailTile
                 icon={<BedDoubleIcon className='h-4 w-4' />}
                 label={tt('colRooms')}
-                value={listing.rooms}
+                value={unit.rooms}
               />
               <DetailTile
                 icon={<RulerIcon className='h-4 w-4' />}
                 label={tt('colSqm')}
-                value={listing.sqm}
+                value={unit.sqm}
               />
-              {listing.floor && (
+              {unit.floor && (
                 <DetailTile
                   icon={<LayersIcon className='h-4 w-4' />}
                   label={tt('compareFloor')}
-                  value={listing.floor}
+                  value={unit.floor}
                 />
               )}
-              {listing.parking != null && (
+              {unit.parking != null && (
                 <DetailTile
                   icon={<CarIcon className='h-4 w-4' />}
                   label={tt('propParking')}
-                  value={listing.parking}
+                  value={unit.parking}
                 />
               )}
-              {listing.yearBuilt && (
+              {unit.yearBuilt && (
                 <DetailTile
                   icon={<HammerIcon className='h-4 w-4' />}
                   label={tt('propYearBuilt')}
-                  value={listing.yearBuilt}
+                  value={unit.yearBuilt}
                 />
               )}
-              {listing.entry && (
+              {unit.entry && (
                 <DetailTile
                   icon={<KeyRoundIcon className='h-4 w-4' />}
                   label={tt('propEntry')}
                   value={
-                    listing.entry === 'flexible'
+                    unit.entry === 'flexible'
                       ? tt('propEntryFlexible')
-                      : new Date(listing.entry).getFullYear()
+                      : new Date(unit.entry).getFullYear()
                   }
                 />
               )}
             </div>
 
             {/* מאפיינים */}
-            {listing.features.length > 0 && (
+            {unit.features.length > 0 && (
               <div className='mt-4 flex flex-wrap gap-2'>
-                {listing.features.map((f, i) => (
+                {unit.features.map((f, i) => (
                   <Badge key={i} variant='neutral'>
                     {t(f)}
                   </Badge>
@@ -589,7 +595,7 @@ export default function DashboardProperty({
             )}
 
             <Text variant='muted' className='mt-4'>
-              {t(listing.description)}
+              {t(unit.description)}
             </Text>
           </Card>
 
@@ -616,10 +622,10 @@ export default function DashboardProperty({
           )}
 
           {role === 'contractor' ? (
-            <ContractorPanel listing={listing} project={project} />
+            <ContractorPanel unit={unit} project={project} />
           ) : (
             <SellerPanel
-              listing={listing}
+              unit={unit}
               allViewings={viewings}
               allLeads={allLeads}
             />

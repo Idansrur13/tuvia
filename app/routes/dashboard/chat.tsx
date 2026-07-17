@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { useFetcher } from 'react-router'
+import { Link, useFetcher } from 'react-router'
 import type { Route } from './+types/chat'
 import {
   ArrowRightIcon,
@@ -21,7 +21,6 @@ import {
 import {
   Badge,
   Button,
-  Card,
   Heading,
   Modal,
   SearchInput,
@@ -32,22 +31,30 @@ import type {
   ChatMessage,
   Conversation,
   ConversationContext,
+  Lead,
   MediaAsset,
   Role,
+  Unit,
   User,
 } from '~/types'
-import { unreadCount } from '~/data'
+import { LEAD_STAGE_META, formatMoney, unreadCount } from '~/data'
 import {
   addParticipant,
   getChatData,
-  getContextNames,
   markConversationRead,
   sendMessage,
-  startDirectConversation,
+  startLeadConversation,
 } from '~/server/chat.server'
-import { getUsers, userById as dbUserById } from '~/server/queries.server'
+import {
+  getLeads,
+  getUsers,
+  leadById as dbLeadById,
+  unitById,
+  userById as dbUserById,
+} from '~/server/queries.server'
 import { useLocale } from '~/i18n/locale'
 import type { DictKey } from '~/i18n/dictionary'
+import chatIcon from '~/assets/icons/undraw_chat_qmyo.svg'
 
 export function meta({}: Route.MetaArgs) {
   return [{ title: 'צ׳אט | Chat' }]
@@ -56,12 +63,28 @@ export function meta({}: Route.MetaArgs) {
 /* ---------- Loader ---------- */
 
 export async function loader({}: Route.LoaderArgs) {
-  const [users, chat, ctxNames] = await Promise.all([
+  const [users, chat, leads] = await Promise.all([
     getUsers(),
     getChatData(),
-    getContextNames(),
+    getLeads(),
   ])
-  return { users, ...chat, ctxNames }
+
+  /* שולפים רק את היחידות שהתצוגה צריכה:
+     יחידת הליד של כל שיחה + יחידות שקושרו להודעות בודדות */
+  const leadOf = new Map(leads.map((l) => [l.id, l]))
+  const unitIds = new Set<string>()
+  for (const c of chat.conversations) {
+    const uid = leadOf.get(c.leadId)?.unitId
+    if (uid) unitIds.add(uid)
+  }
+  for (const m of chat.messages)
+    if (m.linkedEntity?.type === 'unit') unitIds.add(m.linkedEntity.unitId)
+
+  const units = (
+    await Promise.all([...unitIds].map((id) => unitById(id)))
+  ).filter((u): u is Unit => Boolean(u))
+
+  return { users, ...chat, leads, units }
 }
 
 /* ---------- Action ---------- */
@@ -88,12 +111,12 @@ export async function action({ request }: Route.ActionArgs) {
       return { ok: true }
     }
     case 'start': {
-      const [by, withUser] = await Promise.all([
+      const [by, lead] = await Promise.all([
         dbUserById(String(fd.get('byUserId'))),
-        dbUserById(String(fd.get('withUserId'))),
+        dbLeadById(String(fd.get('leadId'))),
       ])
-      if (!by || !withUser) return { error: 'user not found' }
-      const conversationId = await startDirectConversation(by, withUser)
+      if (!by || !lead) return { error: 'not found' }
+      const conversationId = await startLeadConversation(by, lead.id)
       return { conversationId }
     }
     case 'addParticipant': {
@@ -135,7 +158,7 @@ const ROLE_META: Record<
   admin: { labelKey: 'roleAdmin', avatar: 'bg-gray-800', badge: 'neutral' },
 }
 
-/** מטריצת ההרשאות של פרק 2: עם מי כל תפקיד יכול לפתוח שיחה. */
+/** מטריצת ההרשאות של פרק 2: את מי כל תפקיד יכול לצרף לשיחה. */
 const CHAT_MATRIX: Record<Role, Role[]> = {
   client: ['contractor', 'seller'],
   contractor: ['client', 'seller', 'admin'],
@@ -143,53 +166,13 @@ const CHAT_MATRIX: Record<Role, Role[]> = {
   admin: ['client', 'contractor', 'seller', 'admin'],
 }
 
-/* ---------- הקשר השיחה ---------- */
+/* ---------- צ'יפים ---------- */
 
-type ContextNames = {
-  units: Record<string, string>
-  leads: Record<string, string>
-  deals: Record<string, string>
-}
+type LinkedInfo = { label: string; Icon: typeof BuildingIcon } | null
 
-function contextInfo(
-  ctx: ConversationContext,
-  tt: (k: DictKey) => string,
-  names: ContextNames,
-): { label: string; Icon: typeof BuildingIcon } | null {
-  switch (ctx.type) {
-    case 'unit':
-      return {
-        label: `${tt('chatCtxUnit')} · ${names.units[ctx.unitId] ?? ctx.unitId}`,
-        Icon: BuildingIcon,
-      }
-    case 'deal':
-      return {
-        label: `${tt('chatCtxDeal')} · ${names.deals[ctx.dealId] ?? ctx.dealId}`,
-        Icon: FileTextIcon,
-      }
-    case 'lead':
-      return {
-        label: `${tt('chatCtxLead')} · ${names.leads[ctx.leadId] ?? ctx.leadId}`,
-        Icon: FunnelIcon,
-      }
-    case 'direct':
-      return null
-  }
-}
-
-function ContextChip({
-  ctx,
-  names,
-}: {
-  ctx: ConversationContext
-  names: ContextNames
-}) {
-  const { tt } = useLocale()
-  const info = contextInfo(ctx, tt, names)
-  if (!info) return null
-  const { label, Icon } = info
+function Chip({ label, Icon }: { label: string; Icon: typeof BuildingIcon }) {
   return (
-    <span className='inline-flex items-center gap-1 rounded-full bg-primary-50 px-2 py-0.5 text-xs font-medium text-primary-700'>
+    <span className='inline-flex items-center gap-1 rounded-full bg-primary-100 px-2 py-0.5 text-xs font-medium text-primary-700'>
       <Icon className='h-3 w-3' />
       {label}
     </span>
@@ -241,11 +224,11 @@ function DateSeparator({ iso }: { iso: string }) {
 
   return (
     <div className='my-4 flex items-center gap-3'>
-      <span className='h-px flex-1 bg-gray-100' />
-      <span className='rounded-full bg-gray-100 px-3 py-0.5 text-xs font-medium text-gray-500'>
+      <span className='h-px flex-1 bg-primary-200' />
+      <span className='rounded-full bg-primary-200 px-3 py-0.5 text-xs font-medium text-primary-700'>
         {label}
       </span>
-      <span className='h-px flex-1 bg-gray-100' />
+      <span className='h-px flex-1 bg-primary-200' />
     </div>
   )
 }
@@ -255,15 +238,16 @@ function MessageBubble({
   mine,
   showSender,
   sender,
-  names,
+  linkedInfo,
 }: {
   msg: ChatMessage
   mine: boolean
   showSender: boolean
   sender?: User
-  names: ContextNames
+  linkedInfo: (ctx: ConversationContext) => LinkedInfo
 }) {
   const { formatTime } = useLocale()
+  const linked = msg.linkedEntity ? linkedInfo(msg.linkedEntity) : null
 
   return (
     <div className={cn('flex', mine ? 'justify-end' : 'justify-start')}>
@@ -298,21 +282,21 @@ function MessageBubble({
           </p>
         )}
 
-        {msg.linkedEntity && msg.linkedEntity.type !== 'direct' && (
+        {linked && (
           <div className={cn('mt-1.5', mine && 'opacity-90')}>
-            <ContextChip ctx={msg.linkedEntity} names={names} />
+            <Chip label={linked.label} Icon={linked.Icon} />
           </div>
         )}
 
         <div
           className={cn(
-            'mt-1 flex items-center justify-end gap-1',
-            mine ? 'text-primary-100' : 'text-gray-400',
+            'mt-1 flex items-end  gap-1',
+            mine
+              ? 'text-primary-50 justify-end'
+              : 'text-gray-400 justify-start',
           )}
         >
-          <span className='text-[11px]' dir='ltr'>
-            {formatTime(msg.createdAt)}
-          </span>
+          <span className='text-xs '>{formatTime(msg.createdAt)}</span>
           {mine && <DeliveryTicks delivery={msg.delivery} />}
         </div>
       </div>
@@ -324,9 +308,11 @@ function MessageBubble({
 
 export default function ChatPage({ loaderData }: Route.ComponentProps) {
   const { t, tt, formatTime } = useLocale()
-  const { users, conversations, messages, ctxNames } = loaderData
+  const { users, conversations, messages, leads, units } = loaderData
 
   const userById = (id: string) => users.find((u) => u.id === id)
+  const leadById = (id: string) => leads.find((l) => l.id === id)
+  const unitOf = (id?: string) => units.find((u) => u.id === id)
 
   /* "מחובר/ת בתור" — עד שיהיה auth אמיתי */
   const [currentUserId] = useState('u-yossi')
@@ -336,18 +322,39 @@ export default function ChatPage({ loaderData }: Route.ComponentProps) {
 
   const [query, setQuery] = useState('')
   const [filter, setFilter] = useState<'all' | 'unread'>('all')
-  const [draft, setDraft] = useState('')
-  const [attachment, setAttachment] = useState<MediaAsset | null>(null)
+
   const [newChatOpen, setNewChatOpen] = useState(false)
+  const [leadQuery, setLeadQuery] = useState('')
   const [addOpen, setAddOpen] = useState(false)
 
-  const fileRef = useRef<HTMLInputElement>(null)
-  const bottomRef = useRef<HTMLDivElement>(null)
-
-  const sendFetcher = useFetcher()
   const readFetcher = useFetcher()
   const startFetcher = useFetcher<{ conversationId?: string }>()
   const addFetcher = useFetcher()
+
+  /* צ'יפ של ישות שקושרה להודעה בודדת (יחידה/עסקה/ליד) */
+  const linkedInfo = (ctx: ConversationContext): LinkedInfo => {
+    switch (ctx.type) {
+      case 'unit': {
+        const unit = unitOf(ctx.unitId)
+        return {
+          label: `${tt('chatCtxUnit')} · ${unit ? t(unit.title) : ctx.unitId}`,
+          Icon: BuildingIcon,
+        }
+      }
+      case 'deal':
+        return {
+          label: `${tt('chatCtxDeal')} · ${ctx.dealId}`,
+          Icon: FileTextIcon,
+        }
+      case 'lead':
+        return {
+          label: `${tt('chatCtxLead')} · ${userById(ctx.leadId)?.name ?? ctx.leadId}`,
+          Icon: FunnelIcon,
+        }
+      case 'direct':
+        return null
+    }
+  }
 
   /* ---------- נראוּת לפי תפקיד: אדמין רואה הכל, השאר רק שיחות שלהם ---------- */
   const visible = useMemo(() => {
@@ -367,8 +374,10 @@ export default function ChatPage({ loaderData }: Route.ComponentProps) {
         )
           return false
         if (!q) return true
-        const names = c.participants
-          .map((p) => userById(p.userId)?.name ?? '')
+        const names = [
+          ...c.participants.map((p) => userById(p.userId)?.name ?? ''),
+          leadById(c.leadId)?.name ?? '',
+        ]
           .join(' ')
           .toLowerCase()
         const inMessages = messages.some(
@@ -380,26 +389,7 @@ export default function ChatPage({ loaderData }: Route.ComponentProps) {
   }, [conversations, messages, currentUserId, currentUser.role, query, filter])
 
   const selected = conversations.find((c) => c.id === selectedId) ?? null
-  const selectedMessages = useMemo(
-    () =>
-      messages
-        .filter((m) => m.conversationId === selectedId)
-        .sort((a, b) => a.createdAt.localeCompare(b.createdAt)),
-    [messages, selectedId],
-  )
-
-  /* הודעה אופטימית בזמן שליחה */
-  const pending =
-    sendFetcher.state !== 'idle' &&
-    sendFetcher.formData?.get('intent') === 'send' &&
-    sendFetcher.formData.get('conversationId') === selectedId
-      ? {
-          body: String(sendFetcher.formData.get('body') ?? ''),
-          attachments: JSON.parse(
-            String(sendFetcher.formData.get('attachments') ?? '[]'),
-          ) as MediaAsset[],
-        }
-      : null
+  const selectedLead = selected ? leadById(selected.leadId) : undefined
 
   /* משתתפים שאינם אני — לכותרת ולאווטארים */
   const others = (c: Conversation) =>
@@ -426,59 +416,34 @@ export default function ChatPage({ loaderData }: Route.ComponentProps) {
     if (id) setSelectedId(id)
   }, [startFetcher.data])
 
-  /* גלילה לתחתית עם כל הודעה חדשה */
-  useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [selectedMessages.length, pending])
+  /* ---------- שיחה חדשה — תמיד מול ליד ---------- */
+  const startableLeads = useMemo(() => {
+    const mine =
+      currentUser.role === 'admin'
+        ? leads
+        : leads.filter((l) => l.assignedToId === currentUserId)
+    const q = leadQuery.trim().toLowerCase()
+    const filtered = q
+      ? mine.filter(
+          (l) =>
+            l.name.toLowerCase().includes(q) ||
+            l.email.toLowerCase().includes(q),
+        )
+      : mine
+    return filtered.slice(0, 30)
+  }, [leads, currentUser.role, currentUserId, leadQuery])
 
-  /* ---------- שליחה ---------- */
-  const send = () => {
-    if (!selected || (!draft.trim() && !attachment)) return
-    sendFetcher.submit(
-      {
-        intent: 'send',
-        conversationId: selected.id,
-        senderId: currentUserId,
-        body: draft.trim(),
-        attachments: JSON.stringify(attachment ? [attachment] : []),
-      },
-      { method: 'post' },
-    )
-    setDraft('')
-    setAttachment(null)
-  }
-
-  const attachFile = (file: File | undefined) => {
-    if (!file) return
-    setAttachment({
-      id: `att-${Date.now()}`,
-      url: URL.createObjectURL(file),
-      kind: 'image',
-      name: file.name,
-    })
-  }
-
-  /* ---------- שיחה חדשה לפי מטריצת ההרשאות ---------- */
-  const allowedCounterparts = users.filter(
-    (u) =>
-      u.id !== currentUserId &&
-      CHAT_MATRIX[currentUser.role].includes(u.role) &&
-      u.status === 'active',
-  )
-
-  const startChat = (withUser: User) => {
+  const startChat = (lead: Lead) => {
     setNewChatOpen(false)
     const existing = conversations.find(
       (c) =>
-        !c.isGroup &&
-        c.context.type === 'direct' &&
-        c.participants.some((p) => p.userId === withUser.id) &&
+        c.leadId === lead.id &&
         c.participants.some((p) => p.userId === currentUserId),
     )
     if (existing) return selectConversation(existing.id)
 
     startFetcher.submit(
-      { intent: 'start', byUserId: currentUserId, withUserId: withUser.id },
+      { intent: 'start', byUserId: currentUserId, leadId: lead.id },
       { method: 'post' },
     )
   }
@@ -509,19 +474,8 @@ export default function ChatPage({ loaderData }: Route.ComponentProps) {
 
   /* ---------- רינדור ---------- */
 
-  const headerTitle = selected
-    ? selected.isGroup
-      ? others(selected)
-          .map((p) => userById(p.userId)?.name)
-          .filter(Boolean)
-          .join(', ')
-      : (userById(others(selected)[0]?.userId ?? '')?.name ?? '')
-    : ''
-
   return (
     <div className='flex  h-[calc(100dvh-10rem)] flex-col gap-4 lg:h-[calc(100dvh-4rem)] '>
-      {/* Page header */}
-
       <div className='flex flex-1 overflow-hidden   rounded-2xl border border-gray-100 bg-white  shadow-sm'>
         {/* ═══ Sidebar ═══ */}
         <aside
@@ -583,6 +537,8 @@ export default function ChatPage({ loaderData }: Route.ComponentProps) {
                   const unread = unreadCount(messages, c, currentUserId)
                   const lastMsg = c.lastMessage
                   const lastSenderMe = lastMsg?.senderId === currentUserId
+                  const lead = leadById(c.leadId)
+                  const leadUnit = unitOf(lead?.unitId)
 
                   return (
                     <li key={c.id}>
@@ -594,27 +550,19 @@ export default function ChatPage({ loaderData }: Route.ComponentProps) {
                           selectedId === c.id && 'bg-primary-50/60',
                         )}
                       >
-                        {c.isGroup ? (
-                          <span className='flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gray-200 text-gray-600'>
-                            <UsersIcon className='h-5 w-5' />
-                          </span>
-                        ) : (
-                          <Avatar user={other} />
-                        )}
+                        <Avatar user={other} />
 
                         <span className='min-w-0 flex-1'>
                           <span className='flex items-baseline justify-between gap-2'>
                             <span className='truncate text-sm font-semibold text-gray-900'>
-                              {c.isGroup
-                                ? others(c)
-                                    .map((p) => userById(p.userId)?.name)
-                                    .filter(Boolean)
-                                    .join(', ')
-                                : (other?.name ?? '')}
+                              {others(c)
+                                .map((p) => userById(p.userId)?.name)
+                                .filter(Boolean)
+                                .join(', ')}
                             </span>
                             {lastMsg && (
                               <span
-                                className='shrink-0 text-[11px] text-gray-400'
+                                className='shrink-0 text-xs text-gray-400'
                                 dir='ltr'
                               >
                                 {formatTime(lastMsg.createdAt)}
@@ -636,14 +584,15 @@ export default function ChatPage({ loaderData }: Route.ComponentProps) {
                           </span>
 
                           <span className='mt-1 flex flex-wrap items-center gap-1.5'>
-                            <ContextChip ctx={c.context} names={ctxNames} />
-                            {c.isGroup && (
-                              <Badge variant='neutral'>{tt('chatGroup')}</Badge>
-                            )}
-                            {!c.isGroup && other && (
-                              <Badge variant={ROLE_META[other.role].badge}>
-                                {tt(ROLE_META[other.role].labelKey)}
-                              </Badge>
+                            <Chip
+                              label={`${tt('chatCtxLead')} · ${lead?.name ?? c.leadId}`}
+                              Icon={FunnelIcon}
+                            />
+                            {leadUnit && (
+                              <Chip
+                                label={t(leadUnit.title)}
+                                Icon={BuildingIcon}
+                              />
                             )}
                           </span>
                         </span>
@@ -659,7 +608,7 @@ export default function ChatPage({ loaderData }: Route.ComponentProps) {
         {/* ═══ חלון השיחה ═══ */}
         <section
           className={cn(
-            'min-w-0 flex-1 flex-col bg-gray-50/60',
+            'min-w-0 flex-1 flex-col bg-primary-50',
             selected ? 'flex' : 'hidden md:flex',
           )}
         >
@@ -676,173 +625,22 @@ export default function ChatPage({ loaderData }: Route.ComponentProps) {
               </Text>
             </div>
           ) : (
-            <>
-              {/* כותרת השיחה */}
-              <header className='flex items-center gap-3 border-b border-gray-100 bg-white px-4 py-3'>
-                <button
-                  type='button'
-                  onClick={() => setSelectedId(null)}
-                  className='text-gray-400 transition hover:text-gray-700 md:hidden'
-                >
-                  <ArrowRightIcon className='h-5 w-5 rtl:rotate-0 ltr:rotate-180' />
-                </button>
-
-                {selected.isGroup ? (
-                  <span className='flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gray-200 text-gray-600'>
-                    <UsersIcon className='h-5 w-5' />
-                  </span>
-                ) : (
-                  <Avatar user={userById(others(selected)[0]?.userId ?? '')} />
-                )}
-
-                <div className='min-w-0 flex-1'>
-                  <p className='truncate text-sm font-semibold text-gray-900'>
-                    {headerTitle}
-                  </p>
-                  <div className='mt-0.5 flex flex-wrap items-center gap-1.5'>
-                    <ContextChip ctx={selected.context} names={ctxNames} />
-                    {others(selected).map((p) => {
-                      const u = userById(p.userId)
-                      if (!u) return null
-                      return (
-                        <Badge key={p.userId} variant={ROLE_META[u.role].badge}>
-                          {tt(ROLE_META[u.role].labelKey)}
-                        </Badge>
-                      )
-                    })}
-                  </div>
-                </div>
-
-                <button
-                  type='button'
-                  onClick={() => setAddOpen(true)}
-                  aria-label={tt('chatAddParticipant')}
-                  className='flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-gray-400 transition hover:bg-gray-100 hover:text-primary-600'
-                >
-                  <UserPlusIcon className='h-5 w-5' />
-                </button>
-              </header>
-
-              {/* ההודעות */}
-              <div className='min-h-0 flex-1 space-y-2 overflow-y-auto px-4 py-4'>
-                {selectedMessages.length === 0 && !pending && (
-                  <div className='py-14 text-center'>
-                    <MessageSquareIcon className='mx-auto h-8 w-8 text-gray-300' />
-                    <Text as='p' variant='muted' className='mt-2'>
-                      {tt('chatNoMessages')}
-                    </Text>
-                  </div>
-                )}
-
-                {selectedMessages.map((m, i) => {
-                  const prev = selectedMessages[i - 1]
-                  const newDay =
-                    !prev ||
-                    new Date(prev.createdAt).toDateString() !==
-                      new Date(m.createdAt).toDateString()
-                  return (
-                    <div key={m.id}>
-                      {newDay && <DateSeparator iso={m.createdAt} />}
-                      <MessageBubble
-                        msg={m}
-                        mine={m.senderId === currentUserId}
-                        showSender={selected.isGroup}
-                        sender={userById(m.senderId)}
-                        names={ctxNames}
-                      />
-                    </div>
-                  )
-                })}
-
-                {pending && (
-                  <MessageBubble
-                    msg={{
-                      id: 'pending',
-                      conversationId: selected.id,
-                      senderId: currentUserId,
-                      body: pending.body,
-                      attachments: pending.attachments.length
-                        ? pending.attachments
-                        : undefined,
-                      delivery: 'sending',
-                      createdAt: new Date().toISOString(),
-                    }}
-                    mine
-                    showSender={false}
-                    names={ctxNames}
-                  />
-                )}
-                <div ref={bottomRef} />
-              </div>
-
-              {/* קובץ מצורף ממתין */}
-              {attachment && (
-                <div className='flex items-center gap-3 border-t border-gray-100 bg-white px-4 py-2'>
-                  <img
-                    src={attachment.url}
-                    alt={attachment.name}
-                    className='h-12 w-12 rounded-lg object-cover'
-                  />
-                  <Text as='span' variant='small' className='min-w-0 truncate'>
-                    {attachment.name}
-                  </Text>
-                  <button
-                    type='button'
-                    onClick={() => setAttachment(null)}
-                    className='ms-auto rounded-full p-1 text-gray-400 transition hover:bg-gray-100 hover:text-gray-600'
-                  >
-                    <XIcon className='h-4 w-4' />
-                  </button>
-                </div>
-              )}
-
-              {/* שורת הקלט */}
-              <footer className='flex items-center gap-2 border-t border-gray-100 bg-white p-3'>
-                <button
-                  type='button'
-                  aria-label={tt('chatAttach')}
-                  onClick={() => fileRef.current?.click()}
-                  className='flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-gray-400 transition hover:bg-gray-100 hover:text-primary-600'
-                >
-                  <PaperclipIcon className='h-5 w-5' />
-                </button>
-                <input
-                  ref={fileRef}
-                  type='file'
-                  accept='image/*'
-                  className='hidden'
-                  onChange={(e) => attachFile(e.target.files?.[0])}
-                />
-
-                <textarea
-                  rows={1}
-                  value={draft}
-                  onChange={(e) => setDraft(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' && !e.shiftKey) {
-                      e.preventDefault()
-                      send()
-                    }
-                  }}
-                  placeholder={tt('chatTypeMessage')}
-                  className='max-h-28 min-h-10 flex-1 resize-none rounded-xl border border-gray-200 bg-gray-50 px-3.5 py-2.5 text-sm outline-none transition placeholder:text-gray-400 focus:border-primary-400 focus:bg-white focus:ring-2 focus:ring-primary-100'
-                />
-
-                <Button
-                  onClick={send}
-                  disabled={!draft.trim() && !attachment}
-                  aria-label={tt('chatSend')}
-                  className='  disabled:opacity-40'
-                >
-                  <SendIcon className='h-4 w-4 rtl:-scale-x-100' />
-                </Button>
-              </footer>
-            </>
+            <MainChat
+              selected={selected}
+              currentUser={currentUser}
+              messages={messages}
+              users={users}
+              lead={selectedLead}
+              unit={unitOf(selectedLead?.unitId)}
+              linkedInfo={linkedInfo}
+              onAddParticipant={() => setAddOpen(true)}
+              closeChat={() => setSelectedId(null)}
+            />
           )}
         </section>
       </div>
 
-      {/* ═══ שיחה חדשה ═══ */}
+      {/* ═══ שיחה חדשה — בחירת ליד ═══ */}
       <Modal
         open={newChatOpen}
         onClose={() => setNewChatOpen(false)}
@@ -851,26 +649,38 @@ export default function ChatPage({ loaderData }: Route.ComponentProps) {
         <Text variant='muted' className='mb-3'>
           {tt('chatStartWith')}
         </Text>
-        <ul className='divide-y divide-gray-50 overflow-hidden rounded-xl border border-gray-100'>
-          {allowedCounterparts.map((u) => (
-            <li key={u.id}>
+        <SearchInput
+          className='mb-3 w-full'
+          value={leadQuery}
+          onChange={(e) => setLeadQuery(e.target.value)}
+          placeholder={tt('chatSearch')}
+        />
+        <ul className='max-h-120 divide-y divide-gray-50 overflow-y-auto rounded-xl border border-gray-100'>
+          {startableLeads.map((l) => (
+            <li key={l.id}>
               <button
                 type='button'
-                onClick={() => startChat(u)}
+                onClick={() => startChat(l)}
                 className='flex w-full items-center gap-3 px-3 py-2.5 text-start transition hover:bg-gray-50'
               >
-                <Avatar user={u} size='sm' />
+                <Avatar user={l} size='sm' />
                 <span className='min-w-0 flex-1'>
                   <span className='block truncate text-sm font-semibold text-gray-900'>
-                    {u.name}
+                    {l.name}
                   </span>
                   <span className='block truncate text-xs text-gray-500'>
-                    {u.email}
+                    {l.email}
                   </span>
                 </span>
-                <Badge variant={ROLE_META[u.role].badge}>
-                  {tt(ROLE_META[u.role].labelKey)}
-                </Badge>
+                <span className='inline-flex items-center gap-1.5 text-xs text-gray-600'>
+                  <span
+                    className={cn(
+                      'h-2 w-2 rounded-full',
+                      LEAD_STAGE_META[l.stage].dot,
+                    )}
+                  />
+                  {t(LEAD_STAGE_META[l.stage].label)}
+                </span>
               </button>
             </li>
           ))}
@@ -886,7 +696,7 @@ export default function ChatPage({ loaderData }: Route.ComponentProps) {
         <Text variant='muted' className='mb-3'>
           {tt('chatAddParticipantHint')}
         </Text>
-        <ul className='divide-y divide-gray-50 overflow-hidden rounded-xl border border-gray-100'>
+        <ul className='divide-y max-h-120 divide-gray-50 overflow-auto rounded-xl border border-gray-100'>
           {addableUsers.map((u) => (
             <li key={u.id}>
               <button
@@ -911,6 +721,303 @@ export default function ChatPage({ loaderData }: Route.ComponentProps) {
           ))}
         </ul>
       </Modal>
+    </div>
+  )
+}
+
+function MainChat({
+  selected,
+  currentUser,
+  messages,
+  users,
+  lead,
+  unit,
+  linkedInfo,
+  onAddParticipant,
+  closeChat,
+}: {
+  selected: Conversation
+  currentUser: User
+  messages: ChatMessage[]
+  users: User[]
+  lead?: Lead
+  unit?: Unit
+  linkedInfo: (ctx: ConversationContext) => LinkedInfo
+  onAddParticipant: () => void
+  closeChat: () => void
+}) {
+  const { t, tt, locale } = useLocale()
+
+  const [draft, setDraft] = useState('')
+  const [attachment, setAttachment] = useState<MediaAsset | null>(null)
+  const fileRef = useRef<HTMLInputElement>(null)
+  const bottomRef = useRef<HTMLDivElement>(null)
+  const selectedId = selected.id
+  const sendFetcher = useFetcher()
+  const userById = (id: string) => users.find((u) => u.id === id)
+  const others = selected.participants.filter(
+    (p) => p.userId !== currentUser.id,
+  )
+  const isGroup = selected.participants.length > 2
+
+  /* הודעה אופטימית בזמן שליחה */
+  const pending =
+    sendFetcher.state !== 'idle' &&
+    sendFetcher.formData?.get('intent') === 'send' &&
+    sendFetcher.formData.get('conversationId') === selectedId
+      ? {
+          body: String(sendFetcher.formData.get('body') ?? ''),
+          attachments: JSON.parse(
+            String(sendFetcher.formData.get('attachments') ?? '[]'),
+          ) as MediaAsset[],
+        }
+      : null
+  const selectedMessages = useMemo(
+    () =>
+      messages
+        .filter((m) => m.conversationId === selectedId)
+        .sort((a, b) => a.createdAt.localeCompare(b.createdAt)),
+    [messages, selectedId],
+  )
+
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }, [selectedMessages.length, pending])
+
+  const headerTitle = isGroup
+    ? others
+        .map((p) => userById(p.userId)?.name)
+        .filter(Boolean)
+        .join(', ')
+    : (userById(others[0]?.userId ?? '')?.name ?? '')
+
+  /* ---------- שליחה ---------- */
+  const send = () => {
+    if (!draft.trim() && !attachment) return
+    sendFetcher.submit(
+      {
+        intent: 'send',
+        conversationId: selected.id,
+        senderId: currentUser.id,
+        body: draft.trim(),
+        attachments: JSON.stringify(attachment ? [attachment] : []),
+      },
+      { method: 'post' },
+    )
+    setDraft('')
+    setAttachment(null)
+  }
+
+  const attachFile = (file: File | undefined) => {
+    if (!file) return
+    setAttachment({
+      id: `att-${Date.now()}`,
+      url: URL.createObjectURL(file),
+      kind: 'image',
+      name: file.name,
+    })
+  }
+
+  return (
+    <div className='h-full  flex flex-col'>
+      {/* כותרת השיחה */}
+      <header className=' border-b border-gray-100 bg-white px-4 py-3'>
+        <div className='flex items-center gap-3'>
+          <button
+            type='button'
+            onClick={closeChat}
+            className='text-gray-400 transition hover:text-gray-700 md:hidden'
+          >
+            <ArrowRightIcon className='h-5 w-5 rtl:rotate-0 ltr:rotate-180' />
+          </button>
+
+          {isGroup ? (
+            <span className='flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gray-200 text-gray-600'>
+              <UsersIcon className='h-5 w-5' />
+            </span>
+          ) : (
+            <Avatar user={userById(others[0]?.userId ?? '')} />
+          )}
+
+          <div className='min-w-0 flex-1'>
+            <p className='truncate text-sm font-semibold text-gray-900'>
+              {headerTitle}
+            </p>
+            <div className='mt-0.5 flex flex-wrap items-center gap-1.5'>
+              {others.map((p) => {
+                const u = userById(p.userId)
+                if (!u) return null
+                return (
+                  <Badge key={p.userId} variant={ROLE_META[u.role].badge}>
+                    {tt(ROLE_META[u.role].labelKey)}
+                  </Badge>
+                )
+              })}
+            </div>
+          </div>
+
+          <button
+            type='button'
+            onClick={onAddParticipant}
+            aria-label={tt('chatAddParticipant')}
+            className='flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-gray-400 transition hover:bg-gray-100 hover:text-primary-600'
+          >
+            <UserPlusIcon className='h-5 w-5' />
+          </button>
+        </div>
+
+        {/* הליד של השיחה — ודרכו היחידה, השלב והתקציב */}
+        {lead && (
+          <div className='mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 rounded-2xl border border-orange-200 bg-orange-50 p-4'>
+            <Link
+              to={`/dashboard/leads/${lead.id}`}
+              className='inline-flex items-center gap-1.5 text-xs font-semibold text-orange-500 hover:underline'
+            >
+              <FunnelIcon className='h-3.5 w-3.5' />
+              {lead.name}
+            </Link>
+            <span className='inline-flex items-center gap-1.5 text-xs text-gray-600'>
+              <span
+                className={cn(
+                  'h-2 w-2 rounded-full',
+                  LEAD_STAGE_META[lead.stage].dot,
+                )}
+              />
+              {t(LEAD_STAGE_META[lead.stage].label)}
+            </span>
+            {lead.budget && (
+              <span className='text-xs text-gray-600'>
+                {tt('budget')} · {formatMoney(lead.budget, locale)}
+              </span>
+            )}
+            {unit && (
+              <Link
+                to={`/dashboard/property/${unit.id}`}
+                className='inline-flex items-center gap-1.5 text-xs font-medium text-orange-500 hover:underline'
+              >
+                <BuildingIcon className='h-3.5 w-3.5' />
+                {t(unit.title)}
+              </Link>
+            )}
+          </div>
+        )}
+      </header>
+
+      {/* ההודעות */}
+      <div className='min-h-0  flex-1 space-y-2 overflow-y-auto px-4 py-4'>
+        {selectedMessages.length === 0 && !pending && (
+          <div className=' pt-20 flex flex-col items-center justify-center pointer-events-none'>
+            <img src={chatIcon} height={400} width={400} />
+
+            <Text as='p' variant='muted' className='mt-2'>
+              {tt('chatNoMessages')}
+            </Text>
+          </div>
+        )}
+
+        {selectedMessages.map((m, i) => {
+          const prev = selectedMessages[i - 1]
+          const newDay =
+            !prev ||
+            new Date(prev.createdAt).toDateString() !==
+              new Date(m.createdAt).toDateString()
+          return (
+            <div key={m.id}>
+              {newDay && <DateSeparator iso={m.createdAt} />}
+              <MessageBubble
+                msg={m}
+                mine={m.senderId === currentUser.id}
+                showSender={isGroup}
+                sender={userById(m.senderId)}
+                linkedInfo={linkedInfo}
+              />
+            </div>
+          )
+        })}
+
+        {pending && (
+          <MessageBubble
+            msg={{
+              id: 'pending',
+              conversationId: selected.id,
+              senderId: currentUser.id,
+              body: pending.body,
+              attachments: pending.attachments.length
+                ? pending.attachments
+                : undefined,
+              delivery: 'sending',
+              createdAt: new Date().toISOString(),
+            }}
+            mine
+            showSender={false}
+            linkedInfo={linkedInfo}
+          />
+        )}
+        <div ref={bottomRef} />
+      </div>
+
+      {/* קובץ מצורף ממתין */}
+      {attachment && (
+        <div className='flex items-center gap-3 border-t border-gray-100 bg-white px-4 py-2'>
+          <img
+            src={attachment.url}
+            alt={attachment.name}
+            className='h-12 w-12 rounded-lg object-cover'
+          />
+          <Text as='span' variant='small' className='min-w-0 truncate'>
+            {attachment.name}
+          </Text>
+          <button
+            type='button'
+            onClick={() => setAttachment(null)}
+            className='ms-auto rounded-full p-1 text-gray-400 transition hover:bg-gray-100 hover:text-gray-600'
+          >
+            <XIcon className='h-4 w-4' />
+          </button>
+        </div>
+      )}
+
+      {/* שורת הקלט */}
+      <footer className='flex items-center gap-2 border-t border-gray-100 bg-white p-2 mt-auto  '>
+        <button
+          type='button'
+          aria-label={tt('chatAttach')}
+          onClick={() => fileRef.current?.click()}
+          className='flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-gray-400 transition hover:bg-gray-100 hover:text-primary-600'
+        >
+          <PaperclipIcon className='h-5 w-5' />
+        </button>
+        <input
+          ref={fileRef}
+          type='file'
+          accept='image/*'
+          className='hidden'
+          onChange={(e) => attachFile(e.target.files?.[0])}
+        />
+
+        <textarea
+          rows={1}
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+              e.preventDefault()
+              send()
+            }
+          }}
+          placeholder={tt('chatTypeMessage')}
+          className='max-h-28 min-h-10 flex-1 resize-none rounded-xl border border-gray-200 bg-gray-50 px-3.5 py-2.5 text-sm outline-none transition placeholder:text-gray-400 focus:border-primary-400 focus:bg-white focus:ring-2 focus:ring-primary-100'
+        />
+
+        <Button
+          onClick={send}
+          disabled={!draft.trim() && !attachment}
+          aria-label={tt('chatSend')}
+          className='  disabled:opacity-40'
+        >
+          <SendIcon className='h-4 w-4 rtl:-scale-x-100' />
+        </Button>
+      </footer>
     </div>
   )
 }

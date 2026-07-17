@@ -16,16 +16,17 @@ import {
   ChevronLeft,
   ChevronRight,
   HeartIcon,
+  ImageOffIcon,
 } from 'lucide-react'
-import type { Listing } from '~/types'
+import type { Unit } from '~/types'
 import { useLocale } from '~/i18n/locale'
 
-export function ListingCard({
-  listing,
+export function UnitCard({
+  unit,
   compared,
   onCompareToggle,
 }: {
-  listing: Listing
+  unit: Unit
   /** האם הנכס נבחר להשוואה (פרק 3.1). */
   compared?: boolean
   /** קיים רק בעמודים שתומכים בהשוואה. */
@@ -35,11 +36,10 @@ export function ListingCard({
   const [imageIndex, setImageIndex] = useState(0)
   const [liked, setLiked] = useState(false)
 
-  const next = () => setImageIndex((i) => (i + 1) % listing.images.length)
+  const images = unit.gallery ?? []
+  const next = () => setImageIndex((i) => (i + 1) % images.length)
   const prev = () =>
-    setImageIndex(
-      (i) => (i - 1 + listing.images.length) % listing.images.length,
-    )
+    setImageIndex((i) => (i - 1 + images.length) % images.length)
 
   // עוצר ניווט של ה-Link כשלוחצים על כפתורים בתוך הכרטיס
   const guard =
@@ -59,31 +59,37 @@ export function ListingCard({
       exit={cardExit}
       className='group'
     >
-      <Link to={`/property/${listing.id}`} className='block cursor-pointer'>
+      <Link to={`/property/${unit.id}`} className='block cursor-pointer'>
         {/* Image carousel */}
         <div className='relative aspect-4/3 overflow-hidden rounded-2xl bg-gray-100'>
-          <motion.div
-            className='flex h-full'
-            animate={{ x: `${imageIndex * 100}%` }}
-            transition={spring}
-          >
-            {listing.images.map((src, i) => (
-              <img
-                key={src.id}
-                src={src.url}
-                alt={t(listing.title)}
-                loading={i === 0 ? 'eager' : 'lazy'}
-                className='h-full w-full shrink-0 object-cover transition-transform duration-500 group-hover:scale-[1.03]'
-              />
-            ))}
-          </motion.div>
+          {images.length > 0 ? (
+            <motion.div
+              className='flex h-full'
+              animate={{ x: `${imageIndex * 100}%` }}
+              transition={spring}
+            >
+              {images.map((src, i) => (
+                <img
+                  key={src.id}
+                  src={src.url}
+                  alt={t(unit.title)}
+                  loading={i === 0 ? 'eager' : 'lazy'}
+                  className='h-full w-full shrink-0 object-cover transition-transform duration-500 group-hover:scale-[1.03]'
+                />
+              ))}
+            </motion.div>
+          ) : (
+            <div className='flex h-full items-center justify-center text-gray-300'>
+              <ImageOffIcon className='h-8 w-8' />
+            </div>
+          )}
 
-          {listing.badge && (
+          {unit.badge && (
             <Badge
               variant='overlay'
               className='absolute top-3 right-3 px-3 py-1'
             >
-              {t(listing.badge)}
+              {t(unit.badge)}
             </Badge>
           )}
 
@@ -95,7 +101,7 @@ export function ListingCard({
               title={compared ? tt('compareRemove') : tt('compareAdd')}
               whileHover={{ scale: 1.15 }}
               whileTap={{ scale: 0.8 }}
-              onClick={guard(() => onCompareToggle(listing.id))}
+              onClick={guard(() => onCompareToggle(unit.id))}
               className='absolute top-12 left-3'
             >
               <span
@@ -134,66 +140,77 @@ export function ListingCard({
           </motion.button>
 
           {/* Carousel arrows */}
-          <IconButton
-            variant='overlay'
-            aria-label='תמונה קודמת'
-            onClick={guard(prev)}
-            className='absolute right-2 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100'
-          >
-            <ChevronRight className='h-4 w-4' />
-          </IconButton>
-          <IconButton
-            variant='overlay'
-            aria-label='תמונה הבאה'
-            onClick={guard(next)}
-            className='absolute left-2 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100'
-          >
-            <ChevronLeft className='h-4 w-4' />
-          </IconButton>
+          {images.length > 1 && (
+            <>
+              <IconButton
+                variant='overlay'
+                aria-label='תמונה קודמת'
+                onClick={guard(prev)}
+                className='absolute right-2 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100'
+              >
+                <ChevronRight className='h-4 w-4' />
+              </IconButton>
+              <IconButton
+                variant='overlay'
+                aria-label='תמונה הבאה'
+                onClick={guard(next)}
+                className='absolute left-2 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100'
+              >
+                <ChevronLeft className='h-4 w-4' />
+              </IconButton>
 
-          {/* Dots */}
-          <div className='absolute bottom-3 left-1/2 flex -translate-x-1/2 gap-1.5'>
-            {listing.images.map((_, i) => (
-              <span
-                key={i}
-                className={`h-1.5 w-1.5 rounded-full transition ${
-                  i === imageIndex ? 'bg-white' : 'bg-white/50'
-                }`}
-              />
-            ))}
-          </div>
+              {/* Dots */}
+              <div className='absolute bottom-3 left-1/2 flex -translate-x-1/2 gap-1.5'>
+                {images.map((_, i) => (
+                  <span
+                    key={i}
+                    className={`h-1.5 w-1.5 rounded-full transition ${
+                      i === imageIndex ? 'bg-white' : 'bg-white/50'
+                    }`}
+                  />
+                ))}
+              </div>
+            </>
+          )}
         </div>
 
         {/* Details */}
         <div className='mt-3 space-y-1'>
           <div className='flex items-start justify-between gap-2'>
             <h3 className='font-semibold leading-snug text-gray-900'>
-              {t(listing.title)}
+              {t(unit.title)}
             </h3>
             <Badge
-              variant={listing.dealType === 'sale' ? 'primary' : 'success'}
+              variant={unit.dealType === 'sale' ? 'primary' : 'success'}
               className='mt-0.5 shrink-0'
             >
-              {listing.dealType === 'sale' ? 'למכירה' : 'להשכרה'}
+              {unit.dealType === 'sale' ? 'למכירה' : 'להשכרה'}
             </Badge>
           </div>
 
           <Text variant='muted'>
-            {[listing.address.neighborhood, listing.address.city]
+            {[unit.address.neighborhood, unit.address.city]
               .filter(Boolean)
               .join(', ')}
           </Text>
           <Text variant='muted'>
-            {listing.rooms} חדרים · {listing.sqm} מ״ר
-            {listing.floor && ` · קומה ${listing.floor}`}
+            {unit.rooms} חדרים · {unit.sqm} מ״ר
+            {unit.floor && ` · קומה ${unit.floor}`}
           </Text>
 
-          <Price
-            value={listing.price.amount}
-            currency={listing.price.currency}
-            suffix={listing.dealType === 'rent' ? 'לחודש' : undefined}
-            className='pt-1'
-          />
+          {/* מחיר ריק = "צור קשר" (החלטת מוצר) */}
+          {unit.price ? (
+            <Price
+              value={unit.price.amount}
+              currency={unit.price.currency}
+              suffix={unit.dealType === 'rent' ? 'לחודש' : undefined}
+              className='pt-1'
+            />
+          ) : (
+            <Text className='pt-1 font-bold text-primary-700'>
+              {tt('contactForPrice')}
+            </Text>
+          )}
         </div>
       </Link>
     </motion.article>

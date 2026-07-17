@@ -8,8 +8,8 @@
 export * from './util' // IMG, img, L, money, formatMoney, stamp, COUNTRIES
 export * from './meta' // UNIT_STATUS_META, LEAD_STAGE_META, LEAD_STAGES, DEAL_STAGE_META
 export * from './users' // ORGANIZATIONS, USERS
-export * from './projects' // PROJECTS, RESERVATIONS, projectById, unitById
-export * from './listings' // LISTINGS, listingById, sameProjectListings
+export * from './projects' // PROJECTS, RESERVATIONS, projectById
+export * from './units' // UNITS, unitById, LISTING_CATEGORIES, DEAL_TYPES
 export * from './leads' // LEADS, leadById, leadsAssignedTo
 export * from './clients' // INVITES, DEALS, dealById, dealForClient
 export * from './notifications' // NOTIFICATIONS, notificationsFor

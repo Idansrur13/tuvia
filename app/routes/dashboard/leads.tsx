@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
+import { useNavigate } from 'react-router'
 import type { Route } from './+types/leads'
-import { AnimatePresence } from 'motion/react'
 import {
   Badge,
   Banner,
@@ -14,7 +14,6 @@ import {
   Modal,
   PageHeader,
   Pagination,
-  PillSelect,
   SearchInput,
   Select,
   StatCard,
@@ -25,7 +24,6 @@ import {
 import {
   HeatDot,
   HeatOptions,
-  LeadDrawer,
   OverdueBadge,
   ScoreBar,
   StageOptions,
@@ -33,13 +31,14 @@ import {
   isOpen,
   isOverdue,
   userName,
-} from '../../components/leads/lead-drawer'
+} from '../../components/leads/lead-shared'
 
 import {
   AlarmClockIcon,
   ChevronDownIcon,
   FlameIcon,
   FunnelIcon,
+  Handshake,
   KanbanIcon,
   MailIcon,
   PlusIcon,
@@ -117,6 +116,7 @@ const SORT_LABEL: Record<SortKey, DictKey> = {
 
 export default function ContractorLeads({ loaderData }: Route.ComponentProps) {
   const { t, tt, locale, formatDate } = useLocale()
+  const navigate = useNavigate()
   const { projects } = loaderData
   const [leads, setLeads] = useState(loaderData.leads)
   const [invites, setInvites] = useState(loaderData.invites)
@@ -130,7 +130,9 @@ export default function ContractorLeads({ loaderData }: Route.ComponentProps) {
   const [sort, setSort] = useState<SortKey>('score')
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(25)
-  const [selectedId, setSelectedId] = useState<string | null>(null)
+
+  /* ניווט לעמוד הליד — מחליף את פאנל הצד הישן */
+  const openLead = (id: string) => navigate(`/dashboard/leads/${id}`)
 
   /* עדכון פילטר ידני מבטל את התצוגה השמורה הפעילה */
   const patchFilters = (patch: Partial<Filters>) => {
@@ -240,8 +242,6 @@ export default function ContractorLeads({ loaderData }: Route.ComponentProps) {
     })
   }
 
-  const selectedLead = leads.find((l) => l.id === selectedId) ?? null
-
   /* ---------- הזמנות ---------- */
   const pendingInvites = invites.filter((i) => i.status === 'pending').length
 
@@ -316,6 +316,7 @@ export default function ContractorLeads({ loaderData }: Route.ComponentProps) {
           value={wonCount}
           tone='success'
           hint={`${conversion}% ${tt('conversionRate')}`}
+          icon={<Handshake className='h-5 w-5' />}
         />
       </div>
 
@@ -374,7 +375,8 @@ export default function ContractorLeads({ loaderData }: Route.ComponentProps) {
             placeholder={tt('leadsSearchPh')}
           />
 
-          <PillSelect
+          {/* <PillSelect */}
+          <Select
             value={filters.stage}
             onChange={(e) =>
               patchFilters({ stage: e.target.value as Filters['stage'] })
@@ -382,9 +384,10 @@ export default function ContractorLeads({ loaderData }: Route.ComponentProps) {
           >
             <option value='all'>{tt('allStages')}</option>
             <StageOptions />
-          </PillSelect>
+          </Select>
+          {/* </PillSelect> */}
 
-          <PillSelect
+          <Select
             value={filters.heat}
             onChange={(e) =>
               patchFilters({ heat: e.target.value as Filters['heat'] })
@@ -392,9 +395,9 @@ export default function ContractorLeads({ loaderData }: Route.ComponentProps) {
           >
             <option value='all'>{tt('allHeat')}</option>
             <HeatOptions />
-          </PillSelect>
+          </Select>
 
-          <PillSelect
+          <Select
             value={filters.source}
             onChange={(e) =>
               patchFilters({ source: e.target.value as Filters['source'] })
@@ -406,8 +409,20 @@ export default function ContractorLeads({ loaderData }: Route.ComponentProps) {
                 {t(LEAD_SOURCE_META[s].label)}
               </option>
             ))}
-          </PillSelect>
+          </Select>
 
+          <Select
+            value={sort}
+            onChange={(e) => setSort(e.target.value as SortKey)}
+          >
+            {/* <Select> */}
+            {(Object.keys(SORT_LABEL) as SortKey[]).map((k) => (
+              <option key={k} value={k}>
+                {tt(SORT_LABEL[k])}
+              </option>
+            ))}
+            {/* </Select> */}
+          </Select>
           <Chip
             size='sm'
             tone='danger'
@@ -417,18 +432,6 @@ export default function ContractorLeads({ loaderData }: Route.ComponentProps) {
           >
             {tt('overdueOnly')}
           </Chip>
-
-          <PillSelect
-            value={sort}
-            onChange={(e) => setSort(e.target.value as SortKey)}
-          >
-            {(Object.keys(SORT_LABEL) as SortKey[]).map((k) => (
-              <option key={k} value={k}>
-                {tt(SORT_LABEL[k])}
-              </option>
-            ))}
-          </PillSelect>
-
           {hasActiveFilters && (
             <button
               type='button'
@@ -488,7 +491,7 @@ export default function ContractorLeads({ loaderData }: Route.ComponentProps) {
                   return (
                     <tr
                       key={lead.id}
-                      onClick={() => setSelectedId(lead.id)}
+                      onClick={() => openLead(lead.id)}
                       className='cursor-pointer border-b border-gray-50 transition hover:bg-gray-50/70'
                     >
                       <td className='px-4 py-2'>
@@ -511,7 +514,7 @@ export default function ContractorLeads({ loaderData }: Route.ComponentProps) {
                         {lead.budget ? formatMoney(lead.budget, locale) : '—'}
                       </td>
                       <td className='px-3 py-2'>
-                        <PillSelect
+                        <Select
                           value={lead.stage}
                           onClick={(e) => e.stopPropagation()}
                           onChange={(e) =>
@@ -519,7 +522,7 @@ export default function ContractorLeads({ loaderData }: Route.ComponentProps) {
                           }
                         >
                           <StageOptions />
-                        </PillSelect>
+                        </Select>
                       </td>
                       <td className='px-3 py-2'>
                         <HeatDot heat={lead.heat} withLabel />
@@ -608,7 +611,7 @@ export default function ContractorLeads({ loaderData }: Route.ComponentProps) {
                   <button
                     key={lead.id}
                     type='button'
-                    onClick={() => setSelectedId(lead.id)}
+                    onClick={() => openLead(lead.id)}
                     className='w-full rounded-xl border border-gray-100 bg-white p-2.5 text-start shadow-sm transition hover:border-primary-200'
                   >
                     <div className='flex items-center justify-between gap-2'>
@@ -706,18 +709,6 @@ export default function ContractorLeads({ loaderData }: Route.ComponentProps) {
         )}
       </Card>
 
-      {/* ---------- פאנל פרטי ליד ---------- */}
-      <AnimatePresence>
-        {selectedLead && (
-          <LeadDrawer
-            lead={selectedLead}
-            currentUserId={CURRENT_USER_ID}
-            onClose={() => setSelectedId(null)}
-            onUpdate={(patch) => patchLead(selectedLead.id, patch)}
-          />
-        )}
-      </AnimatePresence>
-
       {/* ---------- מודל הזמנה ---------- */}
       <Modal
         open={inviteOpen}
@@ -753,7 +744,7 @@ export default function ContractorLeads({ loaderData }: Route.ComponentProps) {
             <Select name='project' defaultValue={projects[0]?.id}>
               {projects.map((p) => (
                 <option key={p.id} value={p.id}>
-                  {t(p.name)} — {p.address.city}
+                  {t(p.name)}
                 </option>
               ))}
             </Select>

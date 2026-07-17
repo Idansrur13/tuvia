@@ -17,9 +17,8 @@ export interface Viewing extends Timestamps {
   sellerId: Id
   /** הליד/מתעניין שמגיע לביקור. */
   leadId: Id
-  /** הנכס שמראים — יחידת קבלן או נכס מהמרקטפלייס (אחד מהשניים). */
+  /** הנכס שמראים — יחידה (מלאי קבלן או נכס עצמאי). */
   unitId?: Id
-  listingId?: Id
   scheduledAt: ISODate
   /** משך משוער בדקות. */
   durationMin?: number

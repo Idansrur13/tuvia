@@ -8,7 +8,7 @@ export function Card({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
   return (
     <div
       className={cn(
-        'rounded-2xl border border-white/60 bg-white/85 p-4 shadow-card backdrop-blur-sm transition-shadow duration-300 hover:shadow-card-hover',
+        'rounded-2xl border border-white/60 bg-white p-4 shadow-card   duration-300 ',
         className,
       )}
       {...props}
@@ -18,13 +18,14 @@ export function Card({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
 
 /* ---------- StatCard (כרטיס מדד לדשבורד) ---------- */
 
-type StatCardTone = 'primary' | 'success' | 'warning' | 'danger'
+type StatCardTone = 'primary' | 'success' | 'warning' | 'danger' | 'secondary'
 
 const statCardTones: Record<StatCardTone, string> = {
   primary:
     'bg-linear-to-br from-primary-500 to-accent-400 text-white shadow-brand',
   success: 'bg-linear-to-br from-success-500 to-emerald-400 text-white',
-  warning: 'bg-linear-to-br from-warning-500 to-amber-400 text-white',
+  secondary: 'bg-linear-to-br from-rose-500 to-rose-300 text-white',
+  warning: 'bg-linear-to-br from-amber-400 to-amber-400 text-white',
   danger: 'bg-linear-to-br from-danger-500 to-rose-400 text-white',
 }
 

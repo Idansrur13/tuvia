@@ -4,7 +4,8 @@
  *  - מנוע הייבוא החכם (פרק 12) — הטיפוסים קיימים ב-contractor/import-types
  *    ומיוצאים כאן מחדש כדי לרכז את כל טיפוסי ה-AI במקום אחד.
  */
-import type { Id, ISODate, Locale } from './common'
+import type { Id, ISODate, Locale, Money } from './common'
+import type { Project, Unit } from './project'
 
 /* ---------- בוט המלצות (פרק 3.3) ---------- */
 
@@ -21,7 +22,7 @@ export interface AiChatMessage {
 
 /** המלצה בודדת שהבוט מחזיר — נכס מדורג עם הסבר. */
 export interface AiRecommendation {
-  listingId: Id
+  unitId: Id
   /** דירוג התאמה 0-100. */
   matchScore: number
   /** הסבר קצר למה הומלץ (בשפת השיחה). */
@@ -44,29 +45,19 @@ export interface AiConversation {
 /** סוג השינוי שזוהה מול הנתונים הקיימים. */
 export type UnitChange = 'new' | 'priceChanged' | 'sold' | 'unchanged'
 
-export interface ParsedUnit {
-  /** מזהה יחידה קיימת אם זוהתה התאמה. */
-  unitId: string | null
-  name: string
-  rooms: number | null
-  sqm: number | null
-  /** מחיר — null פירושו שהיחידה נמכרה. */
-  price: number | null
-  buyer: string | null
+/** יחידה מהייבוא — Unit מלא + שדות ביקורת (הרחבה נקודתית לתצוגת השינויים). */
+export interface ImportedUnit extends Unit {
   change: UnitChange
   /** המחיר הקודם, כשזוהה עדכון מחיר או מכירה. */
-  oldPrice?: number
+  oldPrice?: Money
+  /** שם רוכש/מתעניין אם הופיע בקובץ. */
+  buyer?: string
 }
 
-export interface ParsedProject {
-  /** מזהה פרויקט קיים אם זוהתה התאמה, אחרת null = פרויקט חדש. */
-  projectId: string | null
+/** פרויקט מהייבוא — Project מלא + האם חדש במערכת. */
+export interface ImportedProject extends Project {
   isNew: boolean
-  name: string
-  city: string
-  country: string
-  currency: string
-  units: ParsedUnit[]
+  units: ImportedUnit[]
 }
 
 export interface ImportSummary {
@@ -78,6 +69,6 @@ export interface ImportSummary {
 }
 
 export interface ImportResult {
-  projects: ParsedProject[]
+  projects: ImportedProject[]
   summary: ImportSummary
 }

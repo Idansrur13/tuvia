@@ -48,7 +48,13 @@ const statusSelectClass: Record<UnitStatus, string> = {
 
 /** מטבע הפרויקט נגזר מהיחידה הראשונה (ברירת מחדל USD). */
 const projectCurrency = (project: Project): Currency =>
-  project.units[0]?.price.currency ?? 'USD'
+  project.units[0]?.price?.currency ?? 'USD'
+
+/** לפרויקט אין מדיה/כתובת משלו — נגזרות מהיחידות (החלטת מודל). */
+const projectImages = (project: Project): MediaAsset[] =>
+  project.units.flatMap((u) => u.gallery ?? [])
+
+const projectAddress = (project: Project) => project.units[0]?.address
 
 function ProgressBar({ value, total }: { value: number; total: number }) {
   const { tt } = useLocale()
@@ -73,26 +79,14 @@ function ProgressBar({ value, total }: { value: number; total: number }) {
 
 function Gallery({
   project,
-  onAddImages,
+  selectImage,
 }: {
   project: Project
-  onAddImages: (imgs: MediaAsset[]) => void
+  selectImage: (img: MediaAsset) => void
 }) {
   const { t, tt } = useLocale()
   const inputRef = useRef<HTMLInputElement>(null)
-  const imgs = project.gallery?.filter((g) => g.kind === 'image') ?? []
-
-  const addFiles = (files: File[]) => {
-    if (!files.length) return
-    onAddImages(
-      files.map((f) => ({
-        id: `img-${Date.now()}-${f.name}`,
-        url: URL.createObjectURL(f),
-        kind: 'image' as const,
-        name: f.name,
-      })),
-    )
-  }
+  const imgs = projectImages(project).filter((g) => g.kind === 'image')
 
   return (
     <div>
@@ -112,6 +106,7 @@ function Gallery({
             key={src.id}
             src={src.url}
             alt={src.name}
+            onClick={() => selectImage(src)}
             className='h-20 w-28 shrink-0 rounded-xl object-cover'
           />
         ))}
@@ -123,14 +118,14 @@ function Gallery({
           <CameraIcon className='h-5 w-5' />
           <span className='text-xs font-medium'>{tt('addImages')}</span>
         </button>
-        <input
+        {/* <input
           ref={inputRef}
           type='file'
           accept='image/*'
           multiple
           className='hidden'
           onChange={(e) => addFiles(Array.from(e.target.files ?? []))}
-        />
+        /> */}
       </div>
     </div>
   )
@@ -146,6 +141,7 @@ export default function ContractorProjects({
   const [statusFilter, setStatusFilter] = useState<UnitStatus | 'all'>('all')
 
   const project = projects.find((p) => p.id === selectedId) ?? projects[0]
+  const [mainImage, setMainImage] = useState(projectImages(project)[0])
   const currency = projectCurrency(project)
 
   const allUnits = useMemo(() => projects.flatMap((p) => p.units), [projects])
@@ -156,13 +152,14 @@ export default function ContractorProjects({
   const soldPercent = allUnits.length
     ? Math.round((soldCount / allUnits.length) * 100)
     : 0
-  const countriesCount = new Set(projects.map((p) => p.address.country.code))
-    .size
+  const countriesCount = new Set(
+    projects.flatMap((p) => p.units.map((u) => u.address.country.code)),
+  ).size
 
   const projectSold = project.units.filter((u) => u.status === 'sold').length
   const soldSum = project.units
     .filter((u) => u.status === 'sold')
-    .reduce((sum, u) => sum + u.price.amount, 0)
+    .reduce((sum, u) => sum + (u.price?.amount ?? 0), 0)
 
   const filteredUnits =
     statusFilter === 'all'
@@ -180,13 +177,6 @@ export default function ContractorProjects({
                 u.id === unitId ? { ...u, status } : u,
               ),
             },
-      ),
-    )
-
-  const addImages = (imgs: MediaAsset[]) =>
-    setProjects((prev) =>
-      prev.map((p) =>
-        p.id !== project.id ? p : { ...p, gallery: [...p.gallery, ...imgs] },
       ),
     )
 
@@ -237,7 +227,13 @@ export default function ContractorProjects({
           <Chip
             key={p.id}
             icon={
-              <img src={p.cover.url} alt='' className='size-10 rounded-xl' />
+              projectImages(p)[0] ? (
+                <img
+                  src={projectImages(p)[0].url}
+                  alt=''
+                  className='size-10 rounded-xl'
+                />
+              ) : undefined
             }
             active={p.id === project.id}
             onClick={() => {
@@ -246,7 +242,7 @@ export default function ContractorProjects({
             }}
           >
             <div className='text-start'>
-              {p.address.country.flag}
+              {projectAddress(p)?.country.flag}
               <p>{t(p.name)}</p>
             </div>
           </Chip>
@@ -256,21 +252,29 @@ export default function ContractorProjects({
       {/* Selected project */}
       <Card className='p-0 overflow-hidden'>
         <div className='flex flex-col md:flex-row'>
-          <img
-            src={project.cover.url}
-            alt={t(project.name)}
-            className='h-44 w-full object-cover md:h-auto md:w-64 rounded-2xl '
-          />
-          <div className='flex-1 space-y-4 p-5'>
+          {mainImage.url ? (
+            <img
+              src={mainImage.url}
+              alt={t(project.name)}
+              className='h-64  object-cover md:h-auto md:w-64 rounded-2xl '
+            />
+          ) : (
+            <div className='flex h-44 w-full items-center justify-center rounded-2xl bg-gray-100 text-gray-300 md:h-auto md:w-64'>
+              <BuildingIcon className='h-8 w-8' />
+            </div>
+          )}
+          <div className='overflow-x-auto overflow-hidden space-y-4 p-5'>
             <div className='flex flex-wrap items-start justify-between gap-2'>
               <div>
                 <Heading level={2} size='md'>
                   {t(project.name)}
                 </Heading>
                 <Text variant='muted' className='mt-0.5'>
-                  {project.address.country.flag} {project.address.city},{' '}
-                  {t(project.address.country.name)} · {tt('currencyLabel')}:{' '}
-                  {currency}
+                  {projectAddress(project)?.country.flag}{' '}
+                  {projectAddress(project)?.city}
+                  {projectAddress(project) &&
+                    `, ${t(projectAddress(project)!.country.name)}`}{' '}
+                  · {tt('currencyLabel')}: {currency}
                 </Text>
               </div>
               <Badge variant='success'>
@@ -280,7 +284,12 @@ export default function ContractorProjects({
             </div>
 
             <ProgressBar value={projectSold} total={project.units.length} />
-            <Gallery project={project} onAddImages={addImages} />
+            <Gallery
+              project={project}
+              selectImage={(img) => {
+                return setMainImage(img)
+              }}
+            />
           </div>
         </div>
       </Card>
@@ -332,7 +341,9 @@ export default function ContractorProjects({
                   className='border-t border-gray-50 transition hover:bg-gray-50/60'
                 >
                   <td className='px-4 py-3'>
-                    <p className='font-semibold text-gray-900'>{unit.name}</p>
+                    <p className='font-semibold text-gray-900'>
+                      {t(unit.title)}
+                    </p>
                     <Text as='span' variant='small'>
                       {unit.id}
                     </Text>
@@ -340,7 +351,7 @@ export default function ContractorProjects({
                   <td className='px-4 py-3 text-gray-600'>{unit.rooms}</td>
                   <td className='px-4 py-3 text-gray-600'>{unit.sqm}</td>
                   <td className='px-4 py-3 font-semibold text-gray-900'>
-                    {formatMoney(unit.price, locale)}
+                    {unit.price ? formatMoney(unit.price, locale) : '—'}
                   </td>
                   <td className='px-4 py-3 text-gray-600'>
                     {unit.buyerId ?? '—'}
