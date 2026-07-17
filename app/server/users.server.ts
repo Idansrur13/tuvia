@@ -36,6 +36,7 @@ export async function contactLeadForm(form: FormData) {
           projectId: unit?.projectId ?? existing.lead.projectId,
         },
       }),
+
       db.leadActivity.create({
         data: {
           leadId: existing.id,
