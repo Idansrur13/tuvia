@@ -18,7 +18,9 @@ import type {
   MediaAsset,
   Money,
   Organization,
+  PartnerApplication,
   Payment,
+  PaymentApproval,
   PriceChange,
   Project,
   Reservation,
@@ -34,7 +36,9 @@ import type {
   Lead as DbLead,
   LeadActivity as DbLeadActivity,
   Organization as DbOrganization,
+  PartnerApplication as DbPartnerApplication,
   Payment as DbPayment,
+  PaymentApproval as DbPaymentApproval,
   Project as DbProject,
   Reservation as DbReservation,
   Unit as DbUnit,
@@ -89,6 +93,36 @@ export const toOrganization = (r: DbOrganization): Organization => ({
   logo: (r.logo as MediaAsset | null) ?? undefined,
   regions: r.regions.length ? r.regions : undefined,
   verified: r.verified,
+  ...stamps(r),
+})
+
+export const toPartnerApplication = (
+  r: DbPartnerApplication,
+): PartnerApplication => ({
+  id: r.id,
+  type: r.type,
+  companyName: r.companyName,
+  contactName: r.contactName,
+  email: r.email,
+  phone: r.phone ?? undefined,
+  country: r.country,
+  status: r.status,
+  reviewedById: r.reviewedById ?? undefined,
+  reviewedAt: isoOpt(r.reviewedAt),
+  note: r.note ?? undefined,
+  ...stamps(r),
+})
+
+export const toPaymentApproval = (r: DbPaymentApproval): PaymentApproval => ({
+  id: r.id,
+  dealId: r.dealId,
+  paymentId: r.paymentId ?? undefined,
+  amount: money(r.amount, r.currency),
+  requestedById: r.requestedById,
+  status: r.status,
+  contractorApprovedAt: isoOpt(r.contractorApprovedAt),
+  adminConfirmedAt: isoOpt(r.adminConfirmedAt),
+  confirmationRef: r.confirmationRef ?? undefined,
   ...stamps(r),
 })
 

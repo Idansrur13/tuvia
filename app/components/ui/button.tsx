@@ -37,7 +37,7 @@ export function Button({
     <button
       type={type}
       className={cn(
-        'rounded-full font-semibold transition flex items-center gap-2',
+        'rounded-full font-semibold transition flex items-center gap-2 justify-center',
         buttonVariants[variant],
         buttonSizes[size],
         className,
@@ -86,15 +86,23 @@ export function IconButton({
 
 type ChipSize = 'sm' | 'md'
 type ChipTone = 'primary' | 'danger'
+type ChipAppearance = 'soft' | 'solid'
 
 const chipSizes: Record<ChipSize, string> = {
   sm: 'gap-1.5 px-3 py-1.5 text-xs',
   md: 'gap-2 px-4 py-2 text-sm',
 }
 
-const chipActiveTones: Record<ChipTone, string> = {
-  primary: 'border-primary-500 bg-primary-50 text-primary-700',
-  danger: 'border-danger-500 bg-danger-50 text-danger-700',
+const chipActiveTones: Record<ChipAppearance, Record<ChipTone, string>> = {
+  soft: {
+    primary: 'border-primary-500 bg-primary-50 text-primary-700',
+    danger: 'border-danger-500 bg-danger-50 text-danger-700',
+  },
+  solid: {
+    primary:
+      'border-transparent bg-linear-to-br from-primary-500 to-primary-600 text-white shadow-brand',
+    danger: 'border-transparent bg-danger-500 text-white shadow',
+  },
 }
 
 export interface ChipProps extends ButtonHTMLAttributes<HTMLButtonElement> {
@@ -103,6 +111,8 @@ export interface ChipProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   size?: ChipSize
   /** צבע מצב פעיל — danger לסינונים של דחיפות/איחור */
   tone?: ChipTone
+  /** solid — מצב פעיל מלא בצבע (לסרגלי סינון בולטים) */
+  appearance?: ChipAppearance
 }
 
 export function Chip({
@@ -110,6 +120,7 @@ export function Chip({
   icon,
   size = 'md',
   tone = 'primary',
+  appearance = 'soft',
   className,
   children,
   ...props
@@ -121,7 +132,7 @@ export function Chip({
         'flex shrink-0 items-center rounded-full border font-medium transition',
         chipSizes[size],
         active
-          ? chipActiveTones[tone]
+          ? chipActiveTones[appearance][tone]
           : 'border-gray-200 bg-white text-gray-600 hover:border-gray-300 hover:text-gray-900',
         className,
       )}

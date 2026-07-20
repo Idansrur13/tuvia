@@ -28,28 +28,90 @@ import {
   stagger,
   viewportOnce,
 } from '../components/ui'
+import { A11y } from 'swiper/modules'
 
 import { Logo } from '../components/logo'
+import houseSvg from '~/assets/icons/undraw_house-searching_g2b8.svg'
 import { SiteFooter } from '../components/site-footer'
-import { SearchIcon, StarIcon } from 'lucide-react'
+import {
+  Building2Icon,
+  CheckIcon,
+  CircleCheckBig,
+  ConstructionIcon,
+  CrownIcon,
+  GlobeIcon,
+  HardHat,
+  HeartHandshakeIcon,
+  HomeIcon,
+  LayoutGridIcon,
+  SearchIcon,
+  SparklesIcon,
+  StarIcon,
+  TreesIcon,
+  XIcon,
+} from 'lucide-react'
+
+import { Link } from 'react-router'
 
 import { UnitCard } from './unit-card'
+import 'swiper/css'
+import { Swiper, SwiperSlide } from 'swiper/react'
 
-import type { DealType, ListingCategory, Unit } from '~/types'
+import type { Country, DealType, ListingCategory, Unit } from '~/types'
 import { DEAL_TYPES, IMG, LISTING_CATEGORIES } from '~/data'
 import { useLocale } from '~/i18n/locale'
 import { Header } from '~/components/premisions/header'
 
 type CategoryFilter = 'all' | ListingCategory
+/** סינון חדרים — מינימום חדרים או 'all'. */
+type RoomsFilter = 'all' | '2' | '3' | '4' | '5'
 
 /* ---------- Data ---------- */
 
 const HERO_STATS = [
-  { value: 1240, suffix: '+', labelKey: 'statActiveProperties' },
-  { value: 15, suffix: '', labelKey: 'statCountries' },
-  { value: 320, suffix: '+', labelKey: 'statProjects' },
-  { value: 98, suffix: '%', labelKey: 'statSatisfied' },
+  {
+    value: 1240,
+    suffix: '+',
+    labelKey: 'statActiveProperties',
+    icon: Building2Icon,
+  },
+  { value: 15, suffix: '', labelKey: 'statCountries', icon: GlobeIcon },
+  { value: 320, suffix: '+', labelKey: 'statProjects', icon: HardHat },
+  {
+    value: 98,
+    suffix: '%',
+    labelKey: 'statSatisfied',
+    icon: HeartHandshakeIcon,
+  },
 ] as const
+
+/** אייקונים אמיתיים לקטגוריות במקום אימוג'י — עקביים עם שאר המערכת. */
+const CATEGORY_ICONS: Record<
+  CategoryFilter,
+  React.ComponentType<{ className?: string }>
+> = {
+  all: LayoutGridIcon,
+  apartments: Building2Icon,
+  penthouses: CrownIcon,
+  gardenApartments: TreesIcon,
+  houses: HomeIcon,
+  newFromContractor: ConstructionIcon,
+}
+
+const ROOMS_OPTIONS: RoomsFilter[] = ['all', '2', '3', '4', '5']
+
+/** תמונות דמו למדינות (Unsplash) — מדינה בלי תמונה מקבלת גרדיאנט. */
+const COUNTRY_IMAGES: Record<string, string> = {
+  IL: 'photo-1544971587-b842c27f8e14',
+  CY: 'photo-1507525428034-b723cf961d3e',
+  US: 'photo-1506966953602-c20cc11f75e3',
+  GB: 'photo-1513635269975-59663e0ac1ad',
+  FR: 'photo-1502602898657-3e91760cbb34',
+  DE: 'photo-1560969184-10fe8719e047',
+}
+
+/** ערים פופולריות לחיפוש מהיר — הערכים תואמים ל-address.city בדאטה. */
+const POPULAR_CITIES = ['תל אביב', 'Larnaca', 'Miami'] as const
 
 /* ---------- Components ---------- */
 
@@ -72,7 +134,7 @@ function CountUp({ to, suffix }: { to: number; suffix?: string }) {
   }, [inView, to])
 
   return (
-    <span dir='ltr'>
+    <span>
       <span ref={ref}>0</span>
       {suffix}
     </span>
@@ -110,29 +172,39 @@ function HeroSearchPanel({
     query: string,
     category: CategoryFilter,
     dealType: DealType | 'all',
+    rooms: RoomsFilter,
   ) => void
 }) {
   const { t, tt } = useLocale()
   const [city, setCity] = useState('')
   const [category, setCategory] = useState<CategoryFilter>('all')
   const [dealType, setDealType] = useState<DealType | 'all'>('all')
+  const [rooms, setRooms] = useState<RoomsFilter>('all')
 
   return (
     <form
       onSubmit={(e) => {
         e.preventDefault()
-        onSearch(city, category, dealType)
+        onSearch(city, category, dealType, rooms)
       }}
-      className='rounded-2xl border border-white/70 bg-white/85 p-4 text-right shadow-xl shadow-primary-500/10 backdrop-blur-md'
+      className=''
     >
-      <div className='grid items-end gap-3 sm:grid-cols-2 lg:grid-cols-[1.2fr_1fr_1fr_auto]'>
-        <Field label={tt('cityOrArea')}>
+      {/* שורת חיפוש ראשית */}
+      {/* <div className='flex flex-col gap-2.5 sm:flex-row'>
+        <div className='relative flex-1'>
           <Input
             value={city}
+
             onChange={(e) => setCity(e.target.value)}
             placeholder={tt('cityExample')}
+            aria-label={tt('cityOrArea')}
+            className='h-12 text-base'
           />
-        </Field>
+        </div>
+      </div> */}
+
+      {/* סינון משני */}
+      <div className='flex justify-between items-end mt-4'>
         <Field label={tt('propertyType')}>
           <Select
             value={category}
@@ -157,9 +229,23 @@ function HeroSearchPanel({
             ))}
           </Select>
         </Field>
+        <Field label={tt('roomsLabel')}>
+          <Select
+            value={rooms}
+            onChange={(e) => setRooms(e.target.value as RoomsFilter)}
+          >
+            {ROOMS_OPTIONS.map((r) => (
+              <option key={r} value={r}>
+                {r === 'all' ? tt('anyRooms') : `${r}+`}
+              </option>
+            ))}
+          </Select>
+        </Field>
         <Button
           type='submit'
-          className='flex h-10 items-center justify-center gap-2 sm:col-span-2 lg:col-span-1'
+          size='sm'
+          variant='primary'
+          className='h-fit flex'
         >
           <SearchIcon className='h-4 w-4' />
           {tt('search')}
@@ -186,10 +272,130 @@ function FloatingBlob({
   return (
     <motion.div
       aria-hidden
-      className={`pointer-events-none absolute rounded-full blur-3xl ${className}`}
+      className={`pointer-events-none absolute rounded-full  blur-3xl ${className}`}
       animate={{ y: [0, 28, 0], x: [0, -18, 0], scale: [1, 1.08, 1] }}
       transition={{ duration, repeat: Infinity, ease: 'easeInOut' }}
     />
+  )
+}
+
+/** סרגל מדינות ויזואלי — כרטיסי תמונה שמסננים את הגריד לפי מדינה */
+function CountryExplorer({
+  listings,
+  active,
+  onSelect,
+}: {
+  listings: Unit[]
+  active: 'all' | string
+  onSelect: (code: 'all' | string) => void
+}) {
+  const { t, tt, dir } = useLocale()
+
+  const countries = useMemo(() => {
+    const map = new Map<string, { country: Country; count: number }>()
+    for (const l of listings) {
+      const c = l.address.country
+      const entry = map.get(c.code)
+      if (entry) entry.count++
+      else map.set(c.code, { country: c, count: 1 })
+    }
+    return [...map.values()].sort((a, b) => b.count - a.count)
+  }, [listings])
+
+  if (countries.length < 2) return null
+
+  return (
+    <section className='mx-auto max-w-7xl px-4 pb-10 sm:px-6 lg:px-8'>
+      <motion.div
+        variants={stagger}
+        initial='hidden'
+        whileInView='visible'
+        viewport={viewportOnce}
+      >
+        <motion.div variants={fadeUp} className='mb-5'>
+          <Heading level={2} size='md'>
+            {tt('exploreByCountry')}
+          </Heading>
+          <Text variant='muted' className='mt-1'>
+            {tt('exploreByCountryHint')}
+          </Text>
+        </motion.div>
+
+        <motion.div variants={fadeUp}>
+          <Swiper
+            modules={[A11y]}
+            dir={dir}
+            spaceBetween={16}
+            slidesPerView={1.15}
+            breakpoints={{
+              640: { slidesPerView: 2.2 },
+              1024: { slidesPerView: 3 },
+            }}
+            className='w-full '
+          >
+            {countries.map(({ country, count }) => {
+              const isActive = active === country.code
+              const image = COUNTRY_IMAGES[country.code]
+              return (
+                <SwiperSlide key={country.code}>
+                  <motion.button
+                    type='button'
+                    whileHover={{ y: -4 }}
+                    whileTap={{ scale: 0.97 }}
+                    onClick={() => onSelect(isActive ? 'all' : country.code)}
+                    aria-pressed={isActive}
+                    className={cn(
+                      'group relative h-full w-full cursor-pointer overflow-hidden  rounded-3xl text-right shadow-lg transition-shadow sm:h-44',
+                      isActive
+                        ? 'shadow-xl shadow-primary-300/10 border-2  border-primary-500 '
+                        : 'hover:shadow-xl',
+                    )}
+                  >
+                    {image ? (
+                      <img
+                        src={IMG(image)}
+                        alt={t(country.name)}
+                        loading='lazy'
+                        className='absolute inset-0 h-full w-full object-cover transition-transform duration-500 group-hover:scale-105'
+                      />
+                    ) : (
+                      <div className='absolute inset-0 bg-linear-to-br from-primary-400 to-accent-400' />
+                    )}
+                    <div className='absolute inset-0 bg-linear-to-t from-gray-900/20 via-gray-500/10 to-transparent' />
+
+                    <span className='absolute top-3 inset-s-3 rounded-full bg-white/90 px-2.5 py-1 text-xs font-bold text-gray-800 backdrop-blur'>
+                      {count} {tt('propertiesCount')}
+                    </span>
+
+                    <AnimatePresence>
+                      {isActive && (
+                        <motion.span
+                          initial={{ scale: 0, opacity: 0 }}
+                          animate={{ scale: 1, opacity: 1 }}
+                          exit={{ scale: 0, opacity: 0 }}
+                          className='absolute inset-0  bottom-0  left-0 flex  justify-center items-center '
+                        >
+                          <CircleCheckBig className='text-primary-300/60' />
+                        </motion.span>
+                      )}
+                    </AnimatePresence>
+
+                    <span className='absolute bottom-3.5 inset-s-4 flex items-center gap-2'>
+                      <span className='text-2xl drop-shadow'>
+                        {country.flag}
+                      </span>
+                      <span className='text-lg font-bold text-white drop-shadow'>
+                        {t(country.name)}
+                      </span>
+                    </span>
+                  </motion.button>
+                </SwiperSlide>
+              )
+            })}
+          </Swiper>
+        </motion.div>
+      </motion.div>
+    </section>
   )
 }
 
@@ -200,7 +406,23 @@ export function Listings({ listings }: { listings: Unit[] }) {
 
   const [category, setCategory] = useState<CategoryFilter>('all')
   const [dealType, setDealType] = useState<DealType | 'all'>('all')
+  const [rooms, setRooms] = useState<RoomsFilter>('all')
   const [query, setQuery] = useState('')
+  const [countryCode, setCountryCode] = useState<'all' | string>('all')
+
+  const hasActiveFilters =
+    category !== 'all' ||
+    dealType !== 'all' ||
+    rooms !== 'all' ||
+    query !== '' ||
+    countryCode !== 'all'
+  const clearAllFilters = () => {
+    setCategory('all')
+    setDealType('all')
+    setRooms('all')
+    setQuery('')
+    setCountryCode('all')
+  }
 
   /* השוואת דירות (פרק 3.1) - עד 4 נכסים. */
   const [compareIds, setCompareIds] = useState<string[]>([])
@@ -219,6 +441,9 @@ export function Listings({ listings }: { listings: Unit[] }) {
       listings.filter((l) => {
         if (category !== 'all' && l.category !== category) return false
         if (dealType !== 'all' && l.dealType !== dealType) return false
+        if (rooms !== 'all' && l.rooms < Number(rooms)) return false
+        if (countryCode !== 'all' && l.address.country.code !== countryCode)
+          return false
         if (query) {
           const q = query.trim()
           return (
@@ -229,17 +454,19 @@ export function Listings({ listings }: { listings: Unit[] }) {
         }
         return true
       }),
-    [listings, category, dealType, query],
+    [listings, category, dealType, rooms, query, countryCode],
   )
 
   const handleHeroSearch = (
     q: string,
     cat: CategoryFilter,
     deal: DealType | 'all',
+    minRooms: RoomsFilter,
   ) => {
     setQuery(q)
     setCategory(cat)
     setDealType(deal)
+    setRooms(minRooms)
     document
       .getElementById('listings')
       ?.scrollIntoView({ behavior: 'smooth', block: 'start' })
@@ -252,7 +479,7 @@ export function Listings({ listings }: { listings: Unit[] }) {
         <Header query={query} setQuery={(q) => setQuery(q)} />
 
         {/* Hero */}
-        <section className='relative overflow-hidden '>
+        <section className='relative  '>
           <FloatingBlob
             className='-top-24 -right-24 h-80 w-80 bg-primary-300/50'
             duration={14}
@@ -272,7 +499,11 @@ export function Listings({ listings }: { listings: Unit[] }) {
                 className='text-center self-end lg:text-right'
               >
                 <motion.div variants={fadeUp}>
-                  <Heading level={1} size='xl' className='leading-[1.15] '>
+                  <Heading
+                    level={1}
+                    size='xl'
+                    className='leading-[1.15] text-start'
+                  >
                     {tt('heroTitle1')}{' '}
                     <span className='relative inline-block whitespace-nowrap text-primary-600'>
                       {tt('heroTitle2')}
@@ -300,13 +531,36 @@ export function Listings({ listings }: { listings: Unit[] }) {
                 <motion.div variants={fadeUp}>
                   <Text
                     variant='lead'
-                    className='mx-auto mt-5 max-w-xl lg:mx-0'
+                    className='mx-auto mt-5 max-w-xl text-start lg:mx-0'
                   >
                     {tt('heroLead')}
                   </Text>
                 </motion.div>
 
-                <motion.div variants={fadeUp} className='mt-8'>
+                <motion.div
+                  variants={fadeUp}
+                  className='  mt-6 items-center gap-8 rounded-2xl border border-primary-200/70 bg-white/80 p-6 text-center shadow-xl shadow-primary-300/10 backdrop-blur sm:flex-row sm:text-start'
+                >
+                  <div className='flex gap-4'>
+                    {/* מקום ל-SVG — להחליף את האייקון באיור */}
+                    <div className='flex size-30 shrink-0 items-center justify-center rounded-2xl bg-primary-100'>
+                      <img src={houseSvg} alt='' />
+                    </div>
+
+                    <div className='flex flex-col items-center gap-4 sm:items-start'>
+                      <Heading level={2} size='md'>
+                        {tt('aiTitle')}
+                      </Heading>
+                      <Text variant='muted'>{tt('aiSubtitle')}</Text>
+                      <Link to='/assistant'>
+                        <Button size='md' variant='primary'>
+                          <SearchIcon className='h-4 w-4' />
+                          {tt('navAssistant')}
+                        </Button>
+                      </Link>
+                    </div>
+                  </div>
+                  <div className='h-px bg-primary-200 my-2' />
                   <HeroSearchPanel onSearch={handleHeroSearch} />
                 </motion.div>
 
@@ -354,13 +608,13 @@ export function Listings({ listings }: { listings: Unit[] }) {
                 />
 
                 {/* תמונה משנית */}
-                <Floaty duration={7} className='absolute -bottom-8 -right-8'>
+                <div className='absolute -bottom-8 -right-8'>
                   <img
                     src={IMG('photo-1600607687939-ce8a6c25118c')}
                     alt='עיצוב פנים'
                     className='h-36 w-52 rounded-2xl border-4 border-white object-cover shadow-xl'
                   />
-                </Floaty>
+                </div>
 
                 {/* כרטיס "נמכרה הרגע" */}
                 {/* <motion.div
@@ -390,21 +644,7 @@ export function Listings({ listings }: { listings: Unit[] }) {
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: 0.9 }}
                   className='absolute bottom-16 -left-10'
-                >
-                  <Floaty duration={6} delay={1.2}>
-                    <div className='rounded-xl bg-white/95 px-4 py-3 shadow-lg backdrop-blur'>
-                      <p
-                        className='text-sm font-extrabold text-gray-900'
-                        dir='ltr'
-                      >
-                        ₪4,950,000
-                      </p>
-                      <p className='text-[11px] text-gray-500'>
-                        דירת 4 חד׳ · הצפון הישן, ת״א
-                      </p>
-                    </div>
-                  </Floaty>
-                </motion.div>
+                ></motion.div>
               </motion.div>
             </div>
 
@@ -414,43 +654,92 @@ export function Listings({ listings }: { listings: Unit[] }) {
               initial='hidden'
               whileInView='visible'
               viewport={viewportOnce}
-              className='mt-14 grid grid-cols-2 gap-6 rounded-3xl border border-white/70 bg-white/60 p-6 text-center backdrop-blur sm:grid-cols-4 sm:p-8'
+              className='mt-14 grid grid-cols-2 gap-x-4 gap-y-8 rounded-2xl border border-primary-100/70 bg-white/60 p-4 text-center shadow-xl shadow-primary-500/10 backdrop-blur sm:grid-cols-4 '
             >
-              {HERO_STATS.map((stat) => (
-                <motion.div key={stat.labelKey} variants={fadeUp}>
-                  <dt className='text-2xl font-extrabold text-gray-900 sm:text-3xl'>
-                    <CountUp to={stat.value} suffix={stat.suffix} />
-                  </dt>
-                  <dd>
-                    <Text as='span' variant='muted'>
-                      {tt(stat.labelKey)}
-                    </Text>
-                  </dd>
-                </motion.div>
-              ))}
+              {HERO_STATS.map((stat) => {
+                const StatIcon = stat.icon
+                return (
+                  <motion.div key={stat.labelKey} variants={fadeUp}>
+                    <dt className='flex flex-col items-center gap-2.5'>
+                      <span className='flex h-11 w-11 items-center justify-center rounded-2xl bg-primary-100/80 text-primary-600'>
+                        <StatIcon className='h-5 w-5' />
+                      </span>
+                      <span className='bg-linear-to-br from-primary-600 to-primary-200 bg-clip-text text-2xl font-extrabold text-transparent sm:text-3xl'>
+                        <CountUp to={stat.value} suffix={stat.suffix} />
+                      </span>
+                    </dt>
+                    <dd className='mt-1'>
+                      <Text as='span' variant='muted'>
+                        {tt(stat.labelKey)}
+                      </Text>
+                    </dd>
+                  </motion.div>
+                )
+              })}
             </motion.dl>
           </div>
         </section>
 
-        {/* Category chips */}
-        <div className='sticky top-15.25 z-20 border-b border-gray-100  '>
+        {/* חיפוש ויזואלי לפי מדינה */}
+        <CountryExplorer
+          listings={listings}
+          active={countryCode}
+          onSelect={setCountryCode}
+        />
+
+        {/* סרגל סינון דביק — קטגוריות + סוג עסקה + ניקוי */}
+        <div className='sticky top-15.25 z-20 border-b border-gray-100 bg-white/80 backdrop-blur-md'>
           <motion.div
             variants={stagger}
             initial='hidden'
             animate='visible'
-            className='mx-auto flex max-w-7xl gap-2 overflow-x-auto px-4 py-3 sm:px-6 lg:px-8 scrollbar-none'
+            className='mx-auto flex max-w-7xl items-center gap-2 overflow-x-auto px-4 py-3 sm:px-6 lg:px-8 scrollbar-none'
           >
-            {LISTING_CATEGORIES.map((c) => (
-              <motion.div key={c.id} variants={fadeDown}>
-                <Chip
-                  icon={c.icon}
-                  active={category === c.id}
-                  onClick={() => setCategory(c.id)}
+            {LISTING_CATEGORIES.map((c) => {
+              const CategoryIcon = CATEGORY_ICONS[c.id]
+              const count =
+                c.id === 'all'
+                  ? listings.length
+                  : listings.filter((l) => l.category === c.id).length
+              return (
+                <motion.div key={c.id} variants={fadeDown}>
+                  <Chip
+                    appearance='solid'
+                    icon={<CategoryIcon className='h-4 w-4' />}
+                    active={category === c.id}
+                    onClick={() => setCategory(c.id)}
+                  >
+                    {t(c.label)}
+                    <span
+                      className={cn(
+                        'rounded-full px-1.5 py-0.5 text-[11px] font-semibold leading-none',
+                        category === c.id
+                          ? 'bg-white/25 text-white'
+                          : 'bg-gray-100 text-gray-500',
+                      )}
+                    >
+                      {count}
+                    </span>
+                  </Chip>
+                </motion.div>
+              )
+            })}
+
+            <AnimatePresence>
+              {hasActiveFilters && (
+                <motion.button
+                  type='button'
+                  initial={{ opacity: 0, scale: 0.9 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.9 }}
+                  onClick={clearAllFilters}
+                  className='flex shrink-0 items-center gap-1 rounded-full px-2.5 py-1.5 text-xs font-medium text-gray-400 transition hover:bg-gray-100 hover:text-danger-500'
                 >
-                  {t(c.label)}
-                </Chip>
-              </motion.div>
-            ))}
+                  <XIcon className='h-3.5 w-3.5' />
+                  {tt('clearFilters')}
+                </motion.button>
+              )}
+            </AnimatePresence>
           </motion.div>
         </div>
 
@@ -471,16 +760,9 @@ export function Listings({ listings }: { listings: Unit[] }) {
                     },
                   )}
             </Heading>
-            <div className='flex items-center gap-3'>
-              <ToggleGroup
-                options={DEAL_TYPES.map((d) => [d.id, t(d.label)] as const)}
-                value={dealType}
-                onChange={setDealType}
-              />
-              <Text as='span' variant='muted' className='hidden sm:block'>
-                {filtered.length} {tt('propertiesCount')}
-              </Text>
-            </div>
+            <Text as='span' variant='muted'>
+              {filtered.length} {tt('propertiesCount')}
+            </Text>
           </div>
 
           {filtered.length === 0 ? (
@@ -494,6 +776,15 @@ export function Listings({ listings }: { listings: Unit[] }) {
               <Text variant='muted' className='mt-1'>
                 {tt('noResultsHint')}
               </Text>
+              <Button
+                variant='outline'
+                size='sm'
+                onClick={clearAllFilters}
+                className='mx-auto mt-4'
+              >
+                <XIcon className='h-3.5 w-3.5' />
+                {tt('clearFilters')}
+              </Button>
             </motion.div>
           ) : (
             <motion.div
@@ -513,6 +804,8 @@ export function Listings({ listings }: { listings: Unit[] }) {
             </motion.div>
           )}
         </main>
+
+        {/* באנר העוזר החכם — מוביל לעמוד ה-AI */}
 
         {/* CTA banner */}
         <section className='mx-auto max-w-7xl px-4 pb-14 sm:px-6 lg:px-8'>
@@ -554,8 +847,23 @@ export function Listings({ listings }: { listings: Unit[] }) {
               initial={{ y: 80, opacity: 0 }}
               animate={{ y: 0, opacity: 1 }}
               exit={{ y: 80, opacity: 0 }}
-              className='fixed bottom-4 left-1/2 z-40 flex -translate-x-1/2 items-center gap-3 rounded-full bg-gray-900 px-5 py-2.5 text-white shadow-xl'
+              className='fixed bottom-4 left-1/2 z-40 flex -translate-x-1/2 items-center gap-3 rounded-full bg-gray-900 px-4 py-2.5 text-white shadow-xl'
             >
+              <div className='flex items-center'>
+                {listings
+                  .filter((l) => compareIds.includes(l.id))
+                  .map((l, i) => (
+                    <img
+                      key={l.id}
+                      src={l.gallery?.[0]?.url}
+                      alt={t(l.title)}
+                      className={cn(
+                        'h-8 w-8 rounded-full border-2 border-gray-900 object-cover',
+                        i > 0 && '-ms-3',
+                      )}
+                    />
+                  ))}
+              </div>
               <span className='text-sm font-medium'>
                 {compareIds.length} {tt('compareSelected')}
               </span>

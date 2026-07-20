@@ -20,6 +20,8 @@ import {
   ChartArea,
   GlobeIcon,
   PlusIcon,
+  SquarePen,
+  User,
   UsersIcon,
 } from 'lucide-react'
 import { UNIT_STATUS_META, formatMoney } from '~/data'
@@ -29,7 +31,7 @@ import {
 } from '~/server/queries.server'
 import type { Currency, MediaAsset, Project, UnitStatus } from '~/types'
 import { useLocale } from '~/i18n/locale'
-import { Link, useFetcher } from 'react-router'
+import { Link, useFetcher, useNavigate } from 'react-router'
 
 export function meta({}: Route.MetaArgs) {
   return [{ title: 'הפרויקטים שלי | Projects' }]
@@ -154,7 +156,7 @@ export default function ContractorProjects({
   const statusFetcher = useFetcher()
   const [selectedId, setSelectedId] = useState(loaderData.projects[0].id)
   const [statusFilter, setStatusFilter] = useState<UnitStatus | 'all'>('all')
-
+  const navigate = useNavigate()
   const project = projects.find((p) => p.id === selectedId) ?? projects[0]
   const [mainImage, setMainImage] = useState(projectImages(project)[0])
   const currency = projectCurrency(project)
@@ -352,6 +354,7 @@ export default function ContractorProjects({
                 <th className='px-4 py-3 font-medium'>{tt('colPrice')}</th>
                 <th className='px-4 py-3 font-medium'>{tt('colBuyer')}</th>
                 <th className='px-4 py-3 font-medium'>{tt('colStatus')}</th>
+                <th className='px-4 py-3 font-medium'>{tt('portAction')}</th>
               </tr>
             </thead>
             <tbody>
@@ -389,6 +392,14 @@ export default function ContractorProjects({
                         </option>
                       ))}
                     </Select>
+                  </td>
+                  <td>
+                    <Button
+                      size='sm'
+                      onClick={() => navigate(`/dashboard/property/${unit.id}`)}
+                    >
+                      <SquarePen size={16} />
+                    </Button>
                   </td>
                 </tr>
               ))}

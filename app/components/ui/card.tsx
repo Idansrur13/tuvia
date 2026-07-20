@@ -8,8 +8,8 @@ export function Card({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
   return (
     <div
       className={cn(
-        'rounded-2xl border border-white/60 bg-white p-4 shadow-card   duration-300 ',
         className,
+        `rounded-2xl border border-white/60 p-4 shadow-card    bg-white duration-300 `,
       )}
       {...props}
     />

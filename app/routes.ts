@@ -17,6 +17,7 @@ export default [
 
     route('property/:id', 'routes/dashboard/property.tsx'),
     route('leads', 'routes/dashboard/leads.tsx'),
+    route('deals', 'routes/dashboard/seller/deals.tsx'),
     route('leads/:id', 'routes/dashboard/lead.tsx'),
     route('import', 'routes/dashboard/import.tsx'),
     route('chat', 'routes/dashboard/chat.tsx'),
@@ -27,6 +28,14 @@ export default [
     route('seller/listing/new', 'routes/dashboard/seller/listing-new.tsx'),
     route('seller/inventory', 'routes/dashboard/seller/inventory.tsx'),
     route('seller/viewings', 'routes/dashboard/seller/viewings.tsx'),
-    route('seller/deals', 'routes/dashboard/seller/deals.tsx'),
+
+    /* דשבורד האדמין (פרקים 7, 16.2, 17) */
+    route('admin', 'routes/dashboard/admin/overview.tsx'),
+    route('admin/applications', 'routes/dashboard/admin/applications.tsx'),
+    route('admin/organizations', 'routes/dashboard/admin/organizations.tsx'),
+    route('admin/organizations/:id', 'routes/dashboard/admin/organization.tsx'),
+    route('admin/users', 'routes/dashboard/admin/users.tsx'),
+    route('admin/moderation', 'routes/dashboard/admin/moderation.tsx'),
+    route('admin/payments', 'routes/dashboard/admin/payments.tsx'),
   ]),
 ] satisfies RouteConfig

@@ -10,6 +10,8 @@ export function getUser() {}
 export async function contactLeadForm(form: FormData) {
   const name = String(form.get('name') ?? '').trim()
   const phone = String(form.get('phone') ?? '').trim()
+  const email = String(form.get('email') ?? '').trim()
+  const locale = String(form.get('locale') ?? '').trim()
   const unitId = String(form.get('unitId') ?? '') || undefined
   if (!name || !phone) return { ok: false as const }
 
@@ -23,7 +25,7 @@ export async function contactLeadForm(form: FormData) {
 
   /* פנייה חוזרת — מזהים לפי טלפון ומעדכנים את הליד הקיים במקום ליצור כפול */
   const existing = await db.user.findFirst({
-    where: { phone, role: 'client' },
+    where: { email, role: 'client' },
     include: { lead: true },
   })
   if (existing?.lead) {
@@ -57,8 +59,9 @@ export async function contactLeadForm(form: FormData) {
       name,
       phone,
       /* אין אימייל בטופס — placeholder ייחודי (העמודה unique) עד שהלקוח יירשם */
-      email: `lead-${crypto.randomUUID()}@placeholder.local`,
-      locale: 'he',
+      email: email ?? `lead-${crypto.randomUUID()}@placeholder.local`,
+      locale: locale ?? 'he',
+
       lead: {
         create: {
           source: 'marketplace',

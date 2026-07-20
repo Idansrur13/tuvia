@@ -11,6 +11,7 @@ const fieldBase =
 
 export function Input({
   className,
+
   ...props
 }: InputHTMLAttributes<HTMLInputElement>) {
   return <input className={cn(fieldBase, className)} {...props} />
@@ -38,7 +39,7 @@ export function SearchInput({
   return (
     <div
       className={cn(
-        'flex items-center gap-2 rounded-xl bg-gray-100 px-3 py-2 transition focus-within:ring-2 focus-within:ring-primary-100',
+        'flex items-center gap-2 rounded-xl bg-gray-100 border border-gray-200 px-3 py-2 transition focus-within:ring focus-within:ring-primary-300',
         className,
       )}
     >

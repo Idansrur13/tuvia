@@ -31,6 +31,7 @@ import {
   CheckIcon,
   ChevronLeft,
   ChevronRight,
+  CircleCheckBig,
   HammerIcon,
   HeartIcon,
   KeyRoundIcon,
@@ -178,7 +179,7 @@ function ContactCard({
   agent?: User
   organization?: Organization
 }) {
-  const { tt } = useLocale()
+  const { tt, locale } = useLocale()
   const fetcher = useFetcher<typeof action>()
   const sent = fetcher.data?.ok === true
   const busy = fetcher.state !== 'idle'
@@ -196,11 +197,11 @@ function ContactCard({
     : undefined
 
   return (
-    <Card className='sticky top-24 space-y-5 shadow-lg shadow-primary-500/5'>
+    <div className='sticky rounded-2xl p-4 top-24 space-y-5 shadow-lg shadow-primary-500/20 bg-primary-100'>
       {/* Price */}
-      <div>
+      <div className=''>
         <div className='flex items-baseline justify-between gap-2'>
-          <p className='text-3xl font-extrabold text-gray-900'>
+          <p className='text-3xl font-extrabold text-primary-800'>
             {listing.price ? formatPrice(listing.price) : tt('contactForPrice')}
             {listing.dealType === 'rent' && (
               <span className='text-base font-normal text-gray-500'>
@@ -260,6 +261,7 @@ function ContactCard({
       ) : (
         <fetcher.Form method='post' className='space-y-3'>
           <input type='hidden' name='unitId' value={listing.id} />
+          <input type='hidden' name='locale' value={locale} />
           <Field label={tt('fullName')}>
             <Input
               name='name'
@@ -279,7 +281,20 @@ function ContactCard({
               className='text-right w-full '
             />
           </Field>
+          <Field label={tt('email')}>
+            <Input
+              name='email'
+              type='email'
+
+              required
+              placeholder='info@gmail.com'
+
+              className='text-right w-full '
+            />
+          </Field>
+
           <Button type='submit' className='w-full' disabled={busy}>
+            <CircleCheckBig />
             {tt('scheduleViewing')}
           </Button>
           <Text as='p' variant='small' className='text-center'>
@@ -287,7 +302,7 @@ function ContactCard({
           </Text>
         </fetcher.Form>
       )}
-    </Card>
+    </div>
   )
 }
 
@@ -338,12 +353,29 @@ export default function PropertyPage({ loaderData }: Route.ComponentProps) {
   const [copied, setCopied] = useState(false)
   const images = listing.gallery ?? []
   const share = async () => {
+    const shareData = {
+      title: t(listing.title),
+      text: [
+        tt('shareMessage'),
+        [
+          t(listing.title),
+          [listing.address.street, listing.address.city]
+            .filter(Boolean)
+            .join(', '),
+        ].join(' · '),
+      ].join('\n'),
+      url: window.location.href,
+    }
     try {
+      if (navigator.share) {
+        await navigator.share(shareData)
+        return
+      }
       await navigator.clipboard.writeText(window.location.href)
       setCopied(true)
       setTimeout(() => setCopied(false), 2500)
     } catch {
-      // דפדפן ללא הרשאת clipboard — מתעלמים בשקט
+      // המשתמש ביטל את השיתוף / אין הרשאת clipboard — מתעלמים בשקט
     }
   }
 
@@ -628,7 +660,7 @@ export default function PropertyPage({ loaderData }: Route.ComponentProps) {
                 <Heading level={2} size='md'>
                   {tt('location')}
                 </Heading>
-                <div className='mt-4 flex h-56 flex-col items-center justify-center gap-2 rounded-2xl border border-gray-100 bg-linear-to-b from-primary-50 to-white'>
+                {/* <div className='mt-4 flex h-56 flex-col items-center justify-center gap-2 rounded-2xl border border-gray-100 bg-linear-to-b from-primary-50 to-white'>
                   <span className='flex h-12 w-12 items-center justify-center rounded-full bg-white text-primary-500 shadow-md'>
                     <MapPinIcon className='h-6 w-6' />
                   </span>
@@ -642,6 +674,15 @@ export default function PropertyPage({ loaderData }: Route.ComponentProps) {
                       `${tt('neighborhoodPrefix')} ${listing.address.neighborhood} · `}
                     {tt('exactLocationNote')}
                   </Text>
+                </div> */}
+                <div className=''>
+                  <iframe
+                    src={`https://www.google.com/maps?q=${encodeURIComponent(
+                      `${listing.address.city}, ${listing.address.country.name}`,
+                    )}$z=12&output=embed`}
+                    // height={}
+                    className='h-80 w-full'
+                  ></iframe>
                 </div>
               </motion.div>
             </motion.div>

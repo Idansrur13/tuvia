@@ -7,22 +7,27 @@ import { Logo } from '../components/logo'
 import { useLocale } from '~/i18n/locale'
 import type { DictKey } from '~/i18n/dictionary'
 import {
+  BadgeCheckIcon,
   BriefcaseIcon,
+  Building2Icon,
   BuildingIcon,
   CalendarDaysIcon,
+  CreditCardIcon,
   FunnelIcon,
   HandshakeIcon,
   LayoutDashboardIcon,
   MessageSquareIcon,
+  ShieldCheckIcon,
   SparklesIcon,
+  UsersIcon,
 } from 'lucide-react'
 
 /*
  * פריסת הדשבורד — תפריט הצד נבנה לפי התפקיד (פרק 2 באפיון).
- * ממומשים: קבלן + מוכר/מתווך. מתג התפקיד הוא דמו עד שיחובר auth.
+ * ממומשים: קבלן + מוכר/מתווך + אדמין. מתג התפקיד הוא דמו עד שיחובר auth.
  */
 
-type DashRole = 'contractor' | 'seller'
+type DashRole = 'contractor' | 'seller' | 'admin'
 
 interface NavItem {
   to: string
@@ -49,6 +54,12 @@ const NAVS: Record<DashRole, NavItem[]> = {
       to: '/dashboard/import',
       labelKey: 'navImport',
       icon: SparklesIcon,
+      end: false,
+    },
+    {
+      to: '/dashboard/deals',
+      labelKey: 'navDeals',
+      icon: HandshakeIcon,
       end: false,
     },
     {
@@ -84,7 +95,7 @@ const NAVS: Record<DashRole, NavItem[]> = {
       end: false,
     },
     {
-      to: '/dashboard/seller/deals',
+      to: '/dashboard/deals',
       labelKey: 'navDeals',
       icon: HandshakeIcon,
       end: false,
@@ -102,11 +113,50 @@ const NAVS: Record<DashRole, NavItem[]> = {
       end: false,
     },
   ],
+  admin: [
+    {
+      to: '/dashboard/admin',
+      labelKey: 'navAdminOverview',
+      icon: LayoutDashboardIcon,
+      end: true,
+    },
+    {
+      to: '/dashboard/admin/applications',
+      labelKey: 'navAdminApplications',
+      icon: BadgeCheckIcon,
+      end: false,
+    },
+    {
+      to: '/dashboard/admin/organizations',
+      labelKey: 'navAdminOrgs',
+      icon: Building2Icon,
+      end: false,
+    },
+    {
+      to: '/dashboard/admin/users',
+      labelKey: 'navAdminUsers',
+      icon: UsersIcon,
+      end: false,
+    },
+    {
+      to: '/dashboard/admin/moderation',
+      labelKey: 'navAdminModeration',
+      icon: ShieldCheckIcon,
+      end: false,
+    },
+    {
+      to: '/dashboard/admin/payments',
+      labelKey: 'navAdminPayments',
+      icon: CreditCardIcon,
+      end: false,
+    },
+  ],
 }
 
 const ROLE_LABEL: Record<DashRole, DictKey> = {
   contractor: 'roleContractor',
   seller: 'roleSeller',
+  admin: 'roleAdmin',
 }
 
 /** פרטי משתמש הדמו לכל תפקיד — עד שיחובר auth. */
@@ -120,6 +170,7 @@ const ROLE_USER: Record<
     org: 'י.כ. בנייה ופיתוח בע״מ',
   },
   seller: { initials: 'מל', name: 'מיכל לוי', org: 'רי/מקס תל אביב' },
+  admin: { initials: 'מנ', name: 'מנהל המערכת', org: 'תכלת נדל״ן' },
 }
 
 function RoleSwitch({
@@ -132,7 +183,7 @@ function RoleSwitch({
   const { tt } = useLocale()
   return (
     <div className='flex rounded-xl bg-gray-100 p-0.5'>
-      {(['contractor', 'seller'] as const).map((r) => (
+      {(['contractor', 'seller', 'admin'] as const).map((r) => (
         <button
           key={r}
           type='button'
@@ -212,15 +263,23 @@ export default function DashboardLayout() {
   /* שחזור התפקיד שנבחר + התאמה אוטומטית לפי הנתיב הנוכחי */
   useEffect(() => {
     const saved = localStorage.getItem('dashRole')
-    if (location.pathname.startsWith('/dashboard/seller')) setRole('seller')
-    else if (saved === 'seller' || saved === 'contractor') setRole(saved)
+    if (location.pathname.startsWith('/dashboard/admin')) setRole('admin')
+    else if (location.pathname.startsWith('/dashboard/seller')) setRole('seller')
+    else if (saved === 'seller' || saved === 'contractor' || saved === 'admin')
+      setRole(saved)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   const switchRole = (r: DashRole) => {
     setRole(r)
     localStorage.setItem('dashRole', r)
-    navigate(r === 'seller' ? '/dashboard/seller' : '/dashboard')
+    navigate(
+      r === 'seller'
+        ? '/dashboard/seller'
+        : r === 'admin'
+          ? '/dashboard/admin'
+          : '/dashboard',
+    )
   }
 
   return (
