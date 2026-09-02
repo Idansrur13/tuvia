@@ -108,7 +108,9 @@ export default function AdminOverview({ loaderData }: Route.ComponentProps) {
                       {app.contactName} · {app.country}
                     </Text>
                   </div>
-                  <Badge variant='neutral'>{tt(ORG_TYPE_LABEL[app.type])}</Badge>
+                  <Badge variant='neutral'>
+                    {tt(ORG_TYPE_LABEL[app.type])}
+                  </Badge>
                   <Text as='span' variant='small'>
                     {formatDate(app.createdAt)}
                   </Text>

@@ -21,10 +21,7 @@ import {
 import type { Role, UserStatus } from '~/types'
 import { getUsersAdmin, setUserStatus } from '~/server/admin.server'
 import { useLocale } from '~/i18n/locale'
-import {
-  ROLE_LABELS,
-  USER_STATUS_META,
-} from '~/components/admin/admin-shared'
+import { ROLE_LABELS, USER_STATUS_META } from '~/components/admin/admin-shared'
 
 export function meta({}: Route.MetaArgs) {
   return [{ title: 'ניהול משתמשים | Admin' }]
@@ -158,9 +155,7 @@ export default function AdminUsers({ loaderData }: Route.ComponentProps) {
             key={s}
             size='sm'
             active={statusFilter === s}
-            onClick={() =>
-              setStatusFilter((prev) => (prev === s ? 'all' : s))
-            }
+            onClick={() => setStatusFilter((prev) => (prev === s ? 'all' : s))}
           >
             {tt(USER_STATUS_META[s].label)}
           </Chip>
@@ -223,10 +218,7 @@ export default function AdminUsers({ loaderData }: Route.ComponentProps) {
                       <Select
                         value={user.status}
                         onChange={(e) =>
-                          changeStatus(
-                            user.id,
-                            e.target.value as UserStatus,
-                          )
+                          changeStatus(user.id, e.target.value as UserStatus)
                         }
                       >
                         {STATUSES.map((s) => (

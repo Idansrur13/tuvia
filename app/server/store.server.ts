@@ -120,9 +120,13 @@ export async function applyImport(
               ...history,
               {
                 at: new Date().toISOString(),
-                from: existing.priceAmount != null && existing.priceCurrency
-                  ? { amount: existing.priceAmount, currency: existing.priceCurrency }
-                  : undefined,
+                from:
+                  existing.priceAmount != null && existing.priceCurrency
+                    ? {
+                        amount: existing.priceAmount,
+                        currency: existing.priceCurrency,
+                      }
+                    : undefined,
                 to: u.price,
                 changedBy: 'import',
               },

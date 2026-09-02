@@ -64,7 +64,8 @@ export interface Deal extends Timestamps {
 
 /* ---------- מסמכים וחוזה (פרק 4) ---------- */
 
-export type DocumentKind = 'contract' | 'appendix' | 'approval' | 'receipt' | 'other'
+export type DocumentKind =
+  'contract' | 'appendix' | 'approval' | 'receipt' | 'other'
 export type DocumentStatus = 'draft' | 'pendingSignature' | 'signed'
 
 export interface DealDocument extends Timestamps {
@@ -100,10 +101,7 @@ export interface Payment {
  * בקשת תשלום ← אישור הקבלן ← אישור מנהל הפלטפורמה עם פרטי האישור.
  */
 export type PaymentApprovalStatus =
-  | 'requested'
-  | 'contractorApproved'
-  | 'adminConfirmed'
-  | 'rejected'
+  'requested' | 'contractorApproved' | 'adminConfirmed' | 'rejected'
 
 export interface PaymentApproval extends Timestamps {
   id: Id

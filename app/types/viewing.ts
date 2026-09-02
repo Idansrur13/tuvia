@@ -5,11 +5,7 @@
 import type { Id, ISODate, Timestamps } from './common'
 
 export type ViewingStatus =
-  | 'scheduled'
-  | 'confirmed'
-  | 'completed'
-  | 'cancelled'
-  | 'noShow'
+  'scheduled' | 'confirmed' | 'completed' | 'cancelled' | 'noShow'
 
 export interface Viewing extends Timestamps {
   id: Id

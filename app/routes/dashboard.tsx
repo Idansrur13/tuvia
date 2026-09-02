@@ -264,7 +264,8 @@ export default function DashboardLayout() {
   useEffect(() => {
     const saved = localStorage.getItem('dashRole')
     if (location.pathname.startsWith('/dashboard/admin')) setRole('admin')
-    else if (location.pathname.startsWith('/dashboard/seller')) setRole('seller')
+    else if (location.pathname.startsWith('/dashboard/seller'))
+      setRole('seller')
     else if (saved === 'seller' || saved === 'contractor' || saved === 'admin')
       setRole(saved)
     // eslint-disable-next-line react-hooks/exhaustive-deps

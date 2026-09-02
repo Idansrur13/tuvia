@@ -105,7 +105,12 @@ export const LEAD_HEAT_META: Record<
   LeadHeat,
   { label: Localized; dot: string; text: string; order: number }
 > = {
-  hot: { label: L('חם', 'Hot'), dot: 'bg-red-500', text: 'text-red-600', order: 0 },
+  hot: {
+    label: L('חם', 'Hot'),
+    dot: 'bg-red-500',
+    text: 'text-red-600',
+    order: 0,
+  },
   warm: {
     label: L('פושר', 'Warm'),
     dot: 'bg-amber-400',

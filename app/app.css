@@ -1,4 +1,4 @@
-@import "tailwindcss";
+@import 'tailwindcss';
 
 /*
  * טוקנים גלובליים של המערכת.
@@ -6,8 +6,9 @@
  * שימוש: bg-primary-500, text-primary-700, border-primary-500 וכו'.
  */
 @theme {
-  --font-sans: "Heebo", ui-sans-serif, system-ui, sans-serif,
-    "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
+  --font-sans:
+    'Heebo', ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji',
+    'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';
 
   /* צבע עיקרי תכלת */
   --color-primary-50: #f0f9ff;
@@ -56,8 +57,10 @@
   --color-danger-700: #b91c1c;
 
   /* צללים רכים לכרטיסים — עומק בלי מסגרות כבדות */
-  --shadow-card: 0 1px 2px rgb(11 21 38 / 0.04), 0 8px 24px -12px rgb(11 21 38 / 0.12);
-  --shadow-card-hover: 0 2px 4px rgb(11 21 38 / 0.05), 0 16px 40px -16px rgb(11 21 38 / 0.22);
+  --shadow-card:
+    0 1px 2px rgb(11 21 38 / 0.04), 0 8px 24px -12px rgb(11 21 38 / 0.12);
+  --shadow-card-hover:
+    0 2px 4px rgb(11 21 38 / 0.05), 0 16px 40px -16px rgb(11 21 38 / 0.22);
   --shadow-brand: 0 8px 20px -8px rgb(14 165 233 / 0.5);
 }
 
@@ -72,10 +75,17 @@ body {
  */
 body {
   background-color: rgb(239, 248, 252);
-  background-image: radial-gradient(60rem 32rem at 3% -8%, rgba(137, 205, 236, 0.29), #f6fcff 60%);
+  background-image: radial-gradient(
+    60rem 32rem at 3% -8%,
+    rgba(137, 205, 236, 0.29),
+    #f6fcff 60%
+  );
   background-attachment: fixed;
-  background-size: auto, auto, 32px 32px, 32px 32px;
-
+  background-size:
+    auto,
+    auto,
+    32px 32px,
+    32px 32px;
 }
 
 th {

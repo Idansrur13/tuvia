@@ -61,7 +61,10 @@ export const APPROVAL_STATUS_META: Record<
   { label: DictKey; badge: BadgeVariant }
 > = {
   requested: { label: 'payStatusRequested', badge: 'neutral' },
-  contractorApproved: { label: 'payStatusContractorApproved', badge: 'warning' },
+  contractorApproved: {
+    label: 'payStatusContractorApproved',
+    badge: 'warning',
+  },
   adminConfirmed: { label: 'payStatusAdminConfirmed', badge: 'success' },
   rejected: { label: 'payStatusRejected', badge: 'danger' },
 }

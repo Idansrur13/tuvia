@@ -9,7 +9,8 @@ import type { Role } from './user'
 export type SyncEntity = 'unit' | 'project' | 'lead' | 'deal' | 'reservation'
 
 /** פעולת השינוי. */
-export type SyncAction = 'created' | 'updated' | 'statusChanged' | 'priceChanged' | 'deleted'
+export type SyncAction =
+  'created' | 'updated' | 'statusChanged' | 'priceChanged' | 'deleted'
 
 /**
  * רשומת היסטוריה/אודיט לכל שינוי מהותי (פרק 8.2 — עקביות נתונים).

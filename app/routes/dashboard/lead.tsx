@@ -139,7 +139,11 @@ export async function action({ request, params }: Route.ActionArgs) {
     return { ok: true }
   }
   if (intent === 'note') {
-    await addLeadNote(params.id, String(form.get('text') ?? ''), CURRENT_USER_ID)
+    await addLeadNote(
+      params.id,
+      String(form.get('text') ?? ''),
+      CURRENT_USER_ID,
+    )
     return { ok: true }
   }
   if (intent === 'followUp') {
@@ -308,10 +312,7 @@ function LeadView({
   const changeStage = (stage: LeadStage) => {
     if (lead.stage === stage) return
     const summary = `${t(LEAD_STAGE_META[lead.stage].label)} → ${t(LEAD_STAGE_META[stage].label)}`
-    stageFetcher.submit(
-      { intent: 'stage', stage, summary },
-      { method: 'post' },
-    )
+    stageFetcher.submit({ intent: 'stage', stage, summary }, { method: 'post' })
     const now = new Date().toISOString()
     update({
       stage,
@@ -993,7 +994,10 @@ function LeadView({
                 value={lead.heat}
                 onChange={(e) => {
                   const heat = e.target.value as Lead['heat']
-                  heatFetcher.submit({ intent: 'heat', heat }, { method: 'post' })
+                  heatFetcher.submit(
+                    { intent: 'heat', heat },
+                    { method: 'post' },
+                  )
                   update({ heat })
                 }}
               >

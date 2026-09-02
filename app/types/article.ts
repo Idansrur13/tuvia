@@ -1,7 +1,14 @@
 /*
  * מערכת כתבות דינמית — האדמין מוסיף כתבה, נוצר עמוד דינמי חדש (פרק 3.4).
  */
-import type { Id, ISODate, Localized, MediaAsset, Locale, Timestamps } from './common'
+import type {
+  Id,
+  ISODate,
+  Localized,
+  MediaAsset,
+  Locale,
+  Timestamps,
+} from './common'
 
 export type ArticleStatus = 'draft' | 'scheduled' | 'published' | 'archived'
 

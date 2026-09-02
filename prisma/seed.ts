@@ -16,7 +16,9 @@ import { CONVERSATIONS, MESSAGES } from '../app/data/chat'
 import type { Address, Money } from '../app/types'
 
 const db = new PrismaClient({
-  adapter: new PrismaPg({ connectionString: process.env.DIRECT_URL ?? process.env.DATABASE_URL }),
+  adapter: new PrismaPg({
+    connectionString: process.env.DIRECT_URL ?? process.env.DATABASE_URL,
+  }),
 })
 
 const date = (s?: string) => (s ? new Date(s) : undefined)
@@ -289,7 +291,9 @@ async function main() {
       data: {
         id: c.id,
         leadId: c.leadId,
-        lastMessageAt: msgs.at(-1) ? new Date(msgs.at(-1)!.createdAt) : undefined,
+        lastMessageAt: msgs.at(-1)
+          ? new Date(msgs.at(-1)!.createdAt)
+          : undefined,
         ...stamps(c),
         participants: {
           create: c.participants.map((p) => ({

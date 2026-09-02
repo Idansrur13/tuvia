@@ -35,4 +35,7 @@ export interface Notification {
 /**
  * העדפות אישיות — לכל אירוע, באילו ערוצים לקבל (פרק 10).
  */
-export type NotificationPreferences = Record<NotificationEvent, NotificationChannel[]>
+export type NotificationPreferences = Record<
+  NotificationEvent,
+  NotificationChannel[]
+>

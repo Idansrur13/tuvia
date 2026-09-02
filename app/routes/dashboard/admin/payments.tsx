@@ -100,9 +100,7 @@ export default function AdminPayments({ loaderData }: Route.ComponentProps) {
   }
 
   const filtered =
-    filter === 'all'
-      ? rows
-      : rows.filter((r) => r.approval.status === filter)
+    filter === 'all' ? rows : rows.filter((r) => r.approval.status === filter)
 
   const awaiting = rows.filter(
     (r) => r.approval.status === 'contractorApproved',
@@ -167,19 +165,19 @@ export default function AdminPayments({ loaderData }: Route.ComponentProps) {
         >
           {tt('all')} ({rows.length})
         </Chip>
-        {(
-          Object.keys(APPROVAL_STATUS_META) as PaymentApprovalStatus[]
-        ).map((s) => (
-          <Chip
-            key={s}
-            size='sm'
-            active={filter === s}
-            onClick={() => setFilter(s)}
-          >
-            {tt(APPROVAL_STATUS_META[s].label)} (
-            {rows.filter((r) => r.approval.status === s).length})
-          </Chip>
-        ))}
+        {(Object.keys(APPROVAL_STATUS_META) as PaymentApprovalStatus[]).map(
+          (s) => (
+            <Chip
+              key={s}
+              size='sm'
+              active={filter === s}
+              onClick={() => setFilter(s)}
+            >
+              {tt(APPROVAL_STATUS_META[s].label)} (
+              {rows.filter((r) => r.approval.status === s).length})
+            </Chip>
+          ),
+        )}
       </div>
 
       {filtered.length === 0 ? (
@@ -212,7 +210,8 @@ export default function AdminPayments({ loaderData }: Route.ComponentProps) {
                       {tt('payColRequestedBy')}: {row.requestedByName}
                     </Text>
                     <Text as='p' variant='small' className='mt-0.5'>
-                      {tt('payColRequested')} {formatDate(row.approval.createdAt)}
+                      {tt('payColRequested')}{' '}
+                      {formatDate(row.approval.createdAt)}
                       {row.approval.contractorApprovedAt &&
                         ` · ${tt('payStage1')} ${formatDate(row.approval.contractorApprovedAt)}`}
                       {row.approval.adminConfirmedAt &&
