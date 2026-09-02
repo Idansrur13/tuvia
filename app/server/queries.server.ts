@@ -3,12 +3,15 @@
  * כל פונקציה שולפת מ-Postgres וממירה לטיפוסי הדומיין דרך mappers.server.
  */
 import { db } from './db.server'
+import type { Prisma } from '../../generated/prisma/client'
+import { COUNTRIES } from '~/data'
 import {
   toDeal,
   toInvite,
   toLead,
   toOrganization,
   toPayment,
+  toPaymentApproval,
   toProject,
   toReservation,
   toUnit,
@@ -22,8 +25,11 @@ import type {
   Lead,
   LeadHeat,
   LeadStage,
+  ListingAvailability,
+  ListingCategory,
   Organization,
   Payment,
+  PaymentApproval,
   Project,
   Reservation,
   Unit,
@@ -81,6 +87,66 @@ export async function updateUnitStatus(unitId: string, status: UnitStatus) {
 
 export async function getReservations(): Promise<Reservation[]> {
   return (await db.reservation.findMany()).map(toReservation)
+}
+
+/* ---------- פרסום מודעה למרקטפלייס (פרק 6) ---------- */
+
+/**
+ * שמירת הטופס "מודעה חדשה": עדכון יחידת קבלן קיימת, או יצירת נכס עצמאי
+ * חדש (בלי פרויקט). הטופס חד-לשוני — אותו טקסט נשמר בשתי השפות עד
+ * שיתווסף תרגום, והמפרסם הופך לאיש הקשר של המודעה.
+ */
+export async function publishListing(form: FormData, unit?: Unit) {
+  const str = (name: string) => String(form.get(name) ?? '').trim()
+  const num = (name: string) => (form.get(name) ? Number(form.get(name)) : null)
+  const title = str('title')
+  const description = str('description')
+
+  const marketing = {
+    title: { he: title, en: title } as Prisma.InputJsonValue,
+    description: { he: description, en: description } as Prisma.InputJsonValue,
+    city: str('city'),
+    neighborhood: str('neighborhood') || null,
+    street: str('street') || null,
+    dealType: str('dealType') as 'sale' | 'rent',
+    category: str('category') as ListingCategory,
+    availability: str('availability') as ListingAvailability,
+    priceAmount: Number(form.get('price') ?? 0),
+    rooms: Number(form.get('rooms') ?? 0),
+    sqm: Number(form.get('sqm') ?? 0),
+    floor: str('floor') || null,
+    yearBuilt: num('yearBuilt'),
+    parking: num('parking'),
+    entry: str('entry') || null,
+    features: (str('features')
+      ? str('features')
+          .split(',')
+          .map((f) => f.trim())
+          .filter(Boolean)
+          .map((f) => ({ he: f, en: f }))
+      : []) as Prisma.InputJsonValue[],
+    agentId: CURRENT_SELLER_ID,
+    agentRole: 'seller' as const,
+    publishedToMarketplace: true,
+  }
+
+  if (unit) {
+    await db.unit.update({
+      where: { id: unit.id },
+      data: { ...marketing, priceCurrency: unit.price?.currency ?? 'ILS' },
+    })
+    return
+  }
+
+  /* נכס עצמאי חדש — ללא פרויקט. אין עדיין העלאת קבצים, אז הגלריה ריקה */
+  await db.unit.create({
+    data: {
+      ...marketing,
+      country: COUNTRIES.IL as unknown as Prisma.InputJsonValue,
+      priceCurrency: 'ILS',
+      status: 'available',
+    },
+  })
 }
 
 /* ---------- מרקטפלייס ---------- */
@@ -317,6 +383,14 @@ export async function markPaymentPaid(paymentId: string): Promise<Payment> {
     data: { status: 'paid', paidAt: new Date() },
   })
   return toPayment(row)
+}
+
+/** אישורי תשלום — הבקשות שהמתווכים הגישו לאישור הקבלן והאדמין (פרק 16.2). */
+export async function getPaymentApprovals(): Promise<PaymentApproval[]> {
+  const rows = await db.paymentApproval.findMany({
+    orderBy: { createdAt: 'asc' },
+  })
+  return rows.map(toPaymentApproval)
 }
 
 /** יצירת סיור חדש — מחזירה את הסיור שנשמר, כולל ה-id שנוצר ב-DB. */

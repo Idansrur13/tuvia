@@ -33,11 +33,11 @@ import {
 } from '~/data'
 import {
   getDeals,
+  getPaymentApprovals,
   getProjects,
   getUsers,
   updateDealStage,
 } from '~/server/queries.server'
-import { db } from '~/server/db.server'
 import { useLocale } from '~/i18n/locale'
 import { useFetcher } from 'react-router'
 
@@ -49,27 +49,12 @@ export function meta({}: Route.MetaArgs) {
 }
 
 export async function loader() {
-  const [deals, users, projects, approvalRows] = await Promise.all([
+  const [deals, users, projects, paymentApprovals] = await Promise.all([
     getDeals(),
     getUsers(),
     getProjects(),
-    /* אין עדיין פונקציית שאילתה ייעודית לאישורי תשלום — שולפים ישירות וממפים לטיפוס הדומיין */
-    db.paymentApproval.findMany({ orderBy: { createdAt: 'asc' } }),
+    getPaymentApprovals(),
   ])
-
-  const paymentApprovals: PaymentApproval[] = approvalRows.map((r) => ({
-    id: r.id,
-    dealId: r.dealId,
-    paymentId: r.paymentId ?? undefined,
-    amount: { amount: r.amount, currency: r.currency },
-    requestedById: r.requestedById,
-    status: r.status,
-    contractorApprovedAt: r.contractorApprovedAt?.toISOString(),
-    adminConfirmedAt: r.adminConfirmedAt?.toISOString(),
-    confirmationRef: r.confirmationRef ?? undefined,
-    createdAt: r.createdAt.toISOString(),
-    updatedAt: r.updatedAt.toISOString(),
-  }))
 
   const usersById: Record<string, User> = Object.fromEntries(
     users.map((u) => [u.id, u]),

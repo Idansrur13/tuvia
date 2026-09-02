@@ -28,14 +28,9 @@ import {
   Text,
 } from '../../../components/ui'
 import { COUNTRIES, DEAL_TYPES, LISTING_CATEGORIES } from '~/data'
-import { projectById, unitById } from '~/server/queries.server'
-import { db } from '~/server/db.server'
+import { projectById, publishListing, unitById } from '~/server/queries.server'
 import { useLocale } from '~/i18n/locale'
-import type { ListingAvailability, ListingCategory } from '~/types'
-import type { Prisma } from '../../../../generated/prisma/client'
-
-/** המוכרת המחוברת (עד שיהיה auth אמיתי). */
-const CURRENT_SELLER_ID = 'u-michal'
+import type { ListingAvailability } from '~/types'
 
 export function meta({}: Route.MetaArgs) {
   return [{ title: 'מודעה חדשה | New listing' }]
@@ -52,70 +47,11 @@ export async function loader({ request }: Route.LoaderArgs) {
 }
 
 export async function action({ request }: Route.ActionArgs) {
-  const form = await request.formData()
-
   /* יחידת קבלן קיימת (אם הגענו עם ?unit=) — הפרסום מעדכן אותה */
   const unitId = new URL(request.url).searchParams.get('unit')
   const unit = unitId ? await unitById(unitId) : undefined
 
-  const str = (name: string) => String(form.get(name) ?? '').trim()
-  const title = str('title')
-  const description = str('description')
-
-  /* השדות מהטופס — משותפים לעדכון יחידה קיימת וליצירת נכס עצמאי.
-     דו-לשוני: עד שיהיה תרגום בטופס, אותו טקסט בשתי השפות. */
-  const marketing = {
-    title: { he: title, en: title } as Prisma.InputJsonValue,
-    description: {
-      he: description,
-      en: description,
-    } as Prisma.InputJsonValue,
-    city: str('city'),
-    neighborhood: str('neighborhood') || null,
-    street: str('street') || null,
-    dealType: str('dealType') as 'sale' | 'rent',
-    category: str('category') as ListingCategory,
-    availability: str('availability') as ListingAvailability,
-    priceAmount: Number(form.get('price') ?? 0),
-    rooms: Number(form.get('rooms') ?? 0),
-    sqm: Number(form.get('sqm') ?? 0),
-    floor: str('floor') || null,
-    yearBuilt: form.get('yearBuilt') ? Number(form.get('yearBuilt')) : null,
-    parking: form.get('parking') ? Number(form.get('parking')) : null,
-    entry: str('entry') || null,
-    features: (str('features')
-      ? str('features')
-          .split(',')
-          .map((f) => f.trim())
-          .filter(Boolean)
-          .map((f) => ({ he: f, en: f }))
-      : []) as Prisma.InputJsonValue[],
-    /* המפרסם הופך לאיש הקשר, והנכס יוצא למרקטפלייס */
-    agentId: CURRENT_SELLER_ID,
-    agentRole: 'seller' as const,
-    publishedToMarketplace: true,
-  }
-
-  if (unit) {
-    await db.unit.update({
-      where: { id: unit.id },
-      data: {
-        ...marketing,
-        priceCurrency: unit.price?.currency ?? 'ILS',
-      },
-    })
-  } else {
-    /* נכס עצמאי חדש — ללא פרויקט. אין עדיין העלאת קבצים — גלריה ריקה */
-    await db.unit.create({
-      data: {
-        ...marketing,
-        country: COUNTRIES.IL as unknown as Prisma.InputJsonValue,
-        priceCurrency: 'ILS',
-        status: 'available',
-      },
-    })
-  }
-
+  await publishListing(await request.formData(), unit)
   return { ok: true }
 }
 
@@ -146,9 +82,7 @@ function SectionTitle({
   )
 }
 
-export default function SellerNewListing({
-  loaderData,
-}: Route.ComponentProps) {
+export default function SellerNewListing({ loaderData }: Route.ComponentProps) {
   const { t, tt, locale } = useLocale()
   const navigate = useNavigate()
   const fetcher = useFetcher<typeof action>()
