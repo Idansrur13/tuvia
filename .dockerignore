@@ -1,4 +1,12 @@
-.react-router
-build
+.git
+.github
 node_modules
+build
+.react-router
+generated
+.env
+.env.*
+docs
 README.md
+LICENSE
+*.md

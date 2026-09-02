@@ -1,11 +1,31 @@
-.DS_Store
-.env
+# Dependencies
 /node_modules/
 
-# React Router
-/.react-router/
+# Build output
 /build/
+/.react-router/
+/generated/
 
-/generated/prisma
+# Environment
+.env
+.env.*
+!.env.example
 
-.claude/settings.local.json
+# Logs
+*.log
+npm-debug.log*
+
+# Editors / OS
+.DS_Store
+.idea/
+.vscode/
+*.swp
+.~lock.*#
+
+# Local tooling
+.claude/
+.agents/
+.mcp.json
+
+# Scratch files
+*.tmp
