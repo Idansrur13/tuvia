@@ -125,20 +125,29 @@ const FEATURE_HINTS: [RegExp, string][] = [
   [/נוף|view/i, 'view'],
 ]
 
+/** מעל הסכום הזה תקציב הוא כמעט תמיד רכישה ולא שכר דירה חודשי. */
+const SALE_BUDGET_FLOOR = 100_000
+
 function parseCriteria(text: string, listings: Unit[]): Criteria {
   const features = FEATURE_HINTS.filter(([re]) => re.test(text)).map(
     ([, key]) => key,
   )
+  const budget = parseBudget(text)
+  const stated = /השכר|שכירות|להשכיר|rent|rental|lease/i.test(text)
+    ? ('rent' as const)
+    : /מכיר|לקנות|קניי?ה|רכיש|buy|purchase|for sale/i.test(text)
+      ? ('sale' as const)
+      : undefined
+
   return {
-    budget: parseBudget(text),
+    budget,
     currency: CURRENCY_HINTS.find(([re]) => re.test(text))?.[1],
     rooms: parseRooms(text),
     sqm: parseSqm(text),
-    dealType: /השכר|שכירות|להשכיר|rent|rental|lease/i.test(text)
-      ? 'rent'
-      : /מכיר|לקנות|קניי?ה|רכיש|buy|purchase|for sale/i.test(text)
-        ? 'sale'
-        : undefined,
+    /* לא נאמר במפורש — גודל התקציב מסגיר אם מדובר בקנייה או בשכירות */
+    dealType:
+      stated ??
+      (budget ? (budget >= SALE_BUDGET_FLOOR ? 'sale' : 'rent') : undefined),
     category: CATEGORY_HINTS.find(([re]) => re.test(text))?.[1],
     city: parseCity(text, listings),
     features,
@@ -186,9 +195,9 @@ function scoreUnit(unit: Unit, c: Criteria): Scored {
   const text = unitText(unit)
 
   if (c.city) {
-    max += 30
+    max += 40
     if (unit.address.city === c.city) {
-      score += 30
+      score += 40
       hits.push('city')
     } else misses.push('city')
   }
@@ -199,14 +208,6 @@ function scoreUnit(unit: Unit, c: Criteria): Scored {
       score += 20
       hits.push('category')
     } else misses.push('category')
-  }
-
-  if (c.dealType) {
-    max += 15
-    if (unit.dealType === c.dealType) {
-      score += 15
-      hits.push('dealType')
-    } else misses.push('dealType')
   }
 
   if (c.rooms) {
@@ -258,7 +259,6 @@ function scoreUnit(unit: Unit, c: Criteria): Scored {
 const HIT_LABELS: Record<string, { he: string; en: string }> = {
   city: { he: 'בעיר המבוקשת', en: 'in the requested city' },
   category: { he: 'סוג הנכס תואם', en: 'matching property type' },
-  dealType: { he: 'סוג העסקה תואם', en: 'matching deal type' },
   rooms: { he: 'מספר החדרים מדויק', en: 'exact room count' },
   roomsClose: { he: 'מספר חדרים קרוב', en: 'close on room count' },
   sqm: { he: 'שטח מתאים', en: 'enough floor area' },
@@ -351,7 +351,12 @@ export function answerLocally(
     }
 
   const criteria = parseCriteria(message, pool)
-  const scored = pool
+  /* השוואת מחיר בין שכירות למכירה חסרת משמעות, לכן זה מסנן ולא ניקוד */
+  const matchingDeal = criteria.dealType
+    ? pool.filter((u) => u.dealType === criteria.dealType)
+    : pool
+  const candidates = matchingDeal.length ? matchingDeal : pool
+  const scored = candidates
     .map((u) => scoreUnit(u, criteria))
     .sort(
       (a, b) =>
@@ -400,7 +405,9 @@ export function answerLocally(
       ? `מצאתי ${recommendations.length} נכסים שמתאימים לבקשה.`
       : `אין התאמה מושלמת, אבל אלה הנכסים הקרובים ביותר לבקשה.`
     : perfect > 0
-      ? `I found ${recommendations.length} listing${recommendations.length > 1 ? 's' : ''} that fit your request.`
+      ? recommendations.length === 1
+        ? 'I found one listing that fits your request.'
+        : `I found ${recommendations.length} listings that fit your request.`
       : `Nothing matches perfectly, but these are the closest listings I have.`
 
   return {
