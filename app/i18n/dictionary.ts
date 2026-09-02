@@ -193,6 +193,19 @@ const he = {
   impErrNoFile: 'לא נבחר קובץ',
   impErrSaveFailed: 'שמירת הנתונים נכשלה. נסו שוב.',
   impErrUnknown: 'פעולה לא מוכרת',
+  impErrEmpty: 'הקובץ ריק',
+  impErrTooLarge: 'הקובץ גדול מדי (מקסימום 20MB)',
+  impErrUnreadable: 'לא הצלחנו לקרוא את הקובץ. נסו CSV, JSON, PDF או DOCX.',
+  impErrRefusal: 'הניתוח של הקובץ הזה נדחה. נסו קובץ אחר.',
+  impErrMaxTokens: 'הקובץ גדול מדי לעיבוד בבת אחת. נסו לפצל אותו.',
+  impErrBadOutput: 'הניתוח לא החזיר נתונים תקינים. נסו שוב.',
+  impErrNoKey:
+    'ייבוא של PDF, DOCX או תמונה דורש מפתח AI. בלי מפתח אפשר לייבא מחירוני CSV או JSON.',
+  impErrRate: 'יותר מדי בקשות. המתינו רגע ונסו שוב.',
+  impErrConn: 'בעיית תקשורת מול שרת ה-AI. בדקו את החיבור לאינטרנט.',
+  impErrGeneric: 'הניתוח נכשל. נסו שוב.',
+  impLocalMode:
+    'הקובץ פוענח מקומית בלי AI. שמות הפרויקטים והיחידות נלקחו מהקובץ כמו שהם.',
   impCsvProject: 'פרויקט',
   impCsvCity: 'עיר',
   impCsvCountry: 'מדינה',
@@ -336,6 +349,8 @@ const he = {
   aiErrRate: 'יותר מדי בקשות המתינו רגע ונסו שוב.',
   aiErrConn: 'בעיית תקשורת מול שרת ה-AI. בדקו את החיבור לאינטרנט.',
   aiErrGeneric: 'משהו השתבש. נסו שוב.',
+  aiOfflineMode:
+    'מצב דמו: התשובה חושבה על ידי מנוע ההתאמה המקומי (לא הוגדר מפתח API).',
 
   // ── דשבורד המוכר (פרק 6) ──
   roleView: 'תצוגת תפקיד',
@@ -846,6 +861,20 @@ const en: Record<keyof typeof he, string> = {
   impErrNoFile: 'No file selected',
   impErrSaveFailed: 'Saving failed. Please try again.',
   impErrUnknown: 'Unknown action',
+  impErrEmpty: 'The file is empty',
+  impErrTooLarge: 'File too large (20MB maximum)',
+  impErrUnreadable: 'We could not read this file. Try CSV, JSON, PDF or DOCX.',
+  impErrRefusal: 'Parsing this file was refused. Try a different file.',
+  impErrMaxTokens:
+    'The file is too large to process at once. Try splitting it.',
+  impErrBadOutput: 'Parsing did not return valid data. Please try again.',
+  impErrNoKey:
+    'Importing PDF, DOCX or images requires an AI key. Without one you can still import CSV or JSON price lists.',
+  impErrRate: 'Too many requests. Wait a moment and try again.',
+  impErrConn: 'Connection problem with the AI server. Check your internet.',
+  impErrGeneric: 'Parsing failed. Please try again.',
+  impLocalMode:
+    'Parsed locally without AI. Project and unit names were taken from the file as-is.',
   impCsvProject: 'Project',
   impCsvCity: 'City',
   impCsvCountry: 'Country',
@@ -990,6 +1019,8 @@ const en: Record<keyof typeof he, string> = {
   aiErrRate: 'Too many requests wait a moment and try again.',
   aiErrConn: 'Connection problem with the AI server. Check your internet.',
   aiErrGeneric: 'Something went wrong. Please try again.',
+  aiOfflineMode:
+    'Demo mode: this answer came from the built-in matching engine (no API key configured).',
 
   roleView: 'Role view',
   navSellerOverview: 'Overview',

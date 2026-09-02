@@ -40,9 +40,15 @@ export function meta({}: Route.MetaArgs) {
 /* ---------- Action: שלב הניתוח ושלב השמירה ---------- */
 
 type ActionData =
-  | { error: string; result?: never; saved?: never }
-  | { result: ImportResult; error?: never; saved?: never }
-  | { saved: ImportSummary; error?: never; result?: never }
+  | { error: string; result?: never; saved?: never; mode?: never }
+  | {
+      result: ImportResult
+      /** 'local' = הקובץ פוענח בלי AI (אין מפתח API). */
+      mode: 'ai' | 'local'
+      error?: never
+      saved?: never
+    }
+  | { saved: ImportSummary; error?: never; result?: never; mode?: never }
 
 export async function action({
   request,
@@ -56,7 +62,9 @@ export async function action({
     if (!(file instanceof File) || !file.name) return { error: 'noFile' }
     const { parseFileWithAi } = await import('../../server/ai.server')
     const outcome = await parseFileWithAi(file)
-    return outcome.ok ? { result: outcome.result } : { error: outcome.error }
+    return outcome.ok
+      ? { result: outcome.result, mode: outcome.mode }
+      : { error: outcome.error }
   }
 
   if (intent === 'save') {
@@ -77,6 +85,16 @@ const ERROR_KEYS: Record<string, DictKey> = {
   noFile: 'impErrNoFile',
   saveFailed: 'impErrSaveFailed',
   unknownAction: 'impErrUnknown',
+  empty: 'impErrEmpty',
+  tooLarge: 'impErrTooLarge',
+  unreadable: 'impErrUnreadable',
+  refusal: 'impErrRefusal',
+  maxTokens: 'impErrMaxTokens',
+  badOutput: 'impErrBadOutput',
+  noKey: 'impErrNoKey',
+  rateLimit: 'impErrRate',
+  connection: 'impErrConn',
+  generic: 'impErrGeneric',
 }
 
 /* ---------- תצוגת שינויים ---------- */
@@ -361,6 +379,11 @@ export default function SmartImport() {
       setResult(structuredClone(parseFetcher.data.result))
   }, [parseFetcher.data])
 
+  const localMode =
+    parseFetcher.data &&
+    'mode' in parseFetcher.data &&
+    parseFetcher.data.mode === 'local'
+
   const step: 1 | 2 | 3 = saved ? 3 : result ? 2 : 1
   const summary = result ? computeSummary(result) : null
 
@@ -391,8 +414,7 @@ export default function SmartImport() {
       if (!prev) return prev
       const next = structuredClone(prev)
       const unit = next.projects[pi].units[ui]
-      const currency =
-        unit.price?.currency ?? unit.oldPrice?.currency ?? 'USD'
+      const currency = unit.price?.currency ?? unit.oldPrice?.currency ?? 'USD'
       unit.price = price == null ? undefined : { amount: price, currency }
       /* מחיר ריק = היחידה נמכרה */
       unit.status = price == null ? 'sold' : unit.status
@@ -412,6 +434,10 @@ export default function SmartImport() {
       </Card>
 
       {error && <Banner variant='danger'>{error}</Banner>}
+
+      {localMode && step === 2 && (
+        <Banner variant='warning'>{tt('impLocalMode')}</Banner>
+      )}
 
       <AnimatePresence mode='wait'>
         {/* ---------- שלב 1: העלאה ---------- */}

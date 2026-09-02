@@ -44,7 +44,13 @@ export async function loader({}: Route.LoaderArgs) {
 /* ---------- Action ---------- */
 
 type ActionData =
-  | { reply: string; recommendations: AiRecommendation[]; error?: never }
+  | {
+      reply: string
+      recommendations: AiRecommendation[]
+      /** 'offline' = נענה על ידי מנוע ההתאמה המקומי (לא הוגדר מפתח API). */
+      mode: 'ai' | 'offline'
+      error?: never
+    }
   | { error: AssistantError; reply?: never; recommendations?: never }
 
 export async function action({
@@ -64,7 +70,11 @@ export async function action({
   const { askAssistant } = await import('../assistant/assistant.server')
   const outcome = await askAssistant(history, locale)
   return outcome.ok
-    ? { reply: outcome.reply, recommendations: outcome.recommendations }
+    ? {
+        reply: outcome.reply,
+        recommendations: outcome.recommendations,
+        mode: outcome.mode,
+      }
     : { error: outcome.error }
 }
 
@@ -240,6 +250,8 @@ export default function AssistantPage({ loaderData }: Route.ComponentProps) {
   const bottomRef = useRef<HTMLDivElement>(null)
 
   const loading = fetcher.state !== 'idle'
+  const offline =
+    fetcher.data && 'mode' in fetcher.data && fetcher.data.mode === 'offline'
   const error =
     fetcher.data && 'error' in fetcher.data && fetcher.data.error
       ? tt(ERROR_KEYS[fetcher.data.error])
@@ -365,6 +377,12 @@ export default function AssistantPage({ loaderData }: Route.ComponentProps) {
           {error && (
             <div className='mb-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700'>
               {error}
+            </div>
+          )}
+
+          {offline && !error && (
+            <div className='mb-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-2.5 text-xs font-medium text-amber-800'>
+              {tt('aiOfflineMode')}
             </div>
           )}
 

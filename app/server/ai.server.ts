@@ -7,7 +7,8 @@ import Anthropic from '@anthropic-ai/sdk'
 import { zodOutputFormat } from '@anthropic-ai/sdk/helpers/zod'
 import { z } from 'zod'
 
-import { ensureApiKey } from './anthropic.server'
+import { hasApiKey } from './anthropic.server'
+import { canParseLocally, parseFileLocally } from './import-local.server'
 import { getProjects, resolveCountry, slugify } from './store.server'
 import { L } from '~/data'
 import type {
@@ -66,6 +67,9 @@ const AiProjectSchema = z.object({
 const AiImportSchema = z.object({
   projects: z.array(AiProjectSchema),
 })
+
+/** המבנה שמוזן לשלב השוואת השינויים — מהמודל או מהפענוח המקומי. */
+export type ImportPayload = z.infer<typeof AiImportSchema>
 
 /* ---------- הכנת תוכן הקובץ ---------- */
 
@@ -157,24 +161,28 @@ ${JSON.stringify(existing, null, 1)}
 }
 
 export type AiImportOutcome =
-  { ok: true; result: ImportResult } | { ok: false; error: string }
+  | {
+      ok: true
+      result: ImportResult
+      /** 'ai' = פוענח על ידי המודל, 'local' = פענוח מקומי בלי AI. */
+      mode: 'ai' | 'local'
+    }
+  | { ok: false; error: string }
 
 export async function parseFileWithAi(file: File): Promise<AiImportOutcome> {
-  if (file.size === 0) return { ok: false, error: 'הקובץ ריק' }
-  if (file.size > MAX_FILE_BYTES)
-    return { ok: false, error: 'הקובץ גדול מדי (מקסימום 20MB)' }
+  if (file.size === 0) return { ok: false, error: 'empty' }
+  if (file.size > MAX_FILE_BYTES) return { ok: false, error: 'tooLarge' }
 
-  ensureApiKey()
+  /* בלי מפתח API אין קריאת רשת — מפענחים מקומית מה שאפשר (CSV/JSON) */
+  if (!hasApiKey()) return parseLocally(file)
+
   const client = new Anthropic()
 
   let contentBlock: ContentBlock
   try {
     contentBlock = await fileToContentBlock(file)
   } catch {
-    return {
-      ok: false,
-      error: 'לא הצלחנו לקרוא את הקובץ. נסו PDF, DOCX, CSV או תמונה.',
-    }
+    return { ok: false, error: 'unreadable' }
   }
 
   try {
@@ -199,34 +207,41 @@ export async function parseFileWithAi(file: File): Promise<AiImportOutcome> {
     })
 
     if (response.stop_reason === 'refusal')
-      return { ok: false, error: 'המודל סירב לעבד את הקובץ הזה' }
+      return { ok: false, error: 'refusal' }
     if (response.stop_reason === 'max_tokens')
-      return { ok: false, error: 'הקובץ גדול מדי לעיבוד בבת אחת נסו לפצל אותו' }
-    if (!response.parsed_output)
-      return { ok: false, error: 'המודל לא החזיר נתונים תקינים. נסו שוב.' }
+      return { ok: false, error: 'maxTokens' }
+    if (!response.parsed_output) return { ok: false, error: 'badOutput' }
 
-    return { ok: true, result: await annotateChanges(response.parsed_output) }
+    return {
+      ok: true,
+      mode: 'ai',
+      result: await annotateChanges(response.parsed_output),
+    }
   } catch (error) {
+    /* מפתח שנדחה — מנסים בכל זאת פענוח מקומי לפני שמכריזים על כישלון */
     if (error instanceof Anthropic.AuthenticationError)
-      return {
-        ok: false,
-        error:
-          'חסר מפתח API של Anthropic. הוסיפו ANTHROPIC_API_KEY לקובץ .env בתיקיית הפרויקט והפעילו מחדש את השרת.',
-      }
+      return parseLocally(file)
     if (error instanceof Anthropic.RateLimitError)
-      return { ok: false, error: 'יותר מדי בקשות המתינו רגע ונסו שוב' }
+      return { ok: false, error: 'rateLimit' }
     if (error instanceof Anthropic.APIConnectionError)
-      return {
-        ok: false,
-        error: 'בעיית תקשורת מול שרת ה-AI. בדקו את החיבור לאינטרנט.',
-      }
+      return { ok: false, error: 'connection' }
     if (error instanceof Anthropic.APIError)
-      return {
-        ok: false,
-        error: `שגיאת AI (${error.status}): ${error.message}`,
-      }
+      return { ok: false, error: 'generic' }
     throw error
   }
+}
+
+/* ---------- מסלול מקומי (בלי AI) ---------- */
+
+/**
+ * מחירוני CSV/JSON מפוענחים מקומית ועוברים לאותו שלב השוואת שינויים.
+ * פורמטים שדורשים הבנת מסמך (PDF/DOCX/תמונה) עדיין דורשים מפתח API.
+ */
+async function parseLocally(file: File): Promise<AiImportOutcome> {
+  if (!canParseLocally(file.name)) return { ok: false, error: 'noKey' }
+  const payload = await parseFileLocally(file)
+  if (!payload) return { ok: false, error: 'unreadable' }
+  return { ok: true, mode: 'local', result: await annotateChanges(payload) }
 }
 
 /* ---------- השוואה דטרמיניסטית מול המאגר ---------- */
@@ -235,9 +250,7 @@ export async function parseFileWithAi(file: File): Promise<AiImportOutcome> {
  * ה-AI מחזיר נתונים מנורמלים; את סיווג השינויים (חדש / עדכון מחיר / נמכר)
  * אנחנו מחשבים כאן באופן דטרמיניסטי מול המאגר לא סומכים על המודל בזה.
  */
-async function annotateChanges(
-  ai: z.infer<typeof AiImportSchema>,
-): Promise<ImportResult> {
+async function annotateChanges(ai: ImportPayload): Promise<ImportResult> {
   const stored = await getProjects()
   const now = new Date().toISOString()
   const summary = {

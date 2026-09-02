@@ -8,7 +8,8 @@ import { zodOutputFormat } from '@anthropic-ai/sdk/helpers/zod'
 import { z } from 'zod'
 import { getPublishedUnits } from '~/server/queries.server'
 import type { AiRecommendation, Locale, Unit } from '~/types'
-import { ensureApiKey } from '../server/anthropic.server'
+import { hasApiKey } from '../server/anthropic.server'
+import { answerLocally } from './local-engine'
 
 /* ---------- סכמת הפלט ---------- */
 
@@ -37,7 +38,13 @@ export interface AssistantTurn {
 export type AssistantError = 'noKey' | 'rateLimit' | 'connection' | 'generic'
 
 export type AssistantOutcome =
-  | { ok: true; reply: string; recommendations: AiRecommendation[] }
+  | {
+      ok: true
+      /** 'ai' = תשובת המודל, 'offline' = מנוע ההתאמה המקומי (אין מפתח API). */
+      mode: 'ai' | 'offline'
+      reply: string
+      recommendations: AiRecommendation[]
+    }
   | { ok: false; error: AssistantError }
 
 /* ---------- הפרומפט ---------- */
@@ -85,11 +92,13 @@ export async function askAssistant(
   if (turns.length === 0 || turns.at(-1)?.role !== 'user')
     return { ok: false, error: 'generic' }
 
-  ensureApiKey()
-  const client = new Anthropic()
-
-  // המלאי נטען מבסיס הנתונים ומוזרם לפרומפט
+  // המלאי נטען מבסיס הנתונים ומשמש גם לפרומפט וגם למנוע המקומי
   const listings = await getPublishedUnits()
+
+  /* בלי מפתח API אין קריאת רשת — עונים ממנוע ההתאמה המקומי */
+  if (!hasApiKey()) return offline(turns.at(-1)!.content, locale, listings)
+
+  const client = new Anthropic()
 
   try {
     const response = await client.messages.parse({
@@ -114,10 +123,16 @@ export async function askAssistant(
         .sort((a, b) => b.matchScore - a.matchScore)
         .slice(0, 4)
 
-    return { ok: true, reply: response.parsed_output.reply, recommendations }
+    return {
+      ok: true,
+      mode: 'ai',
+      reply: response.parsed_output.reply,
+      recommendations,
+    }
   } catch (error) {
+    /* מפתח שנדחה — ממשיכים במנוע המקומי במקום לשבור את החוויה */
     if (error instanceof Anthropic.AuthenticationError)
-      return { ok: false, error: 'noKey' }
+      return offline(turns.at(-1)!.content, locale, listings)
     if (error instanceof Anthropic.RateLimitError)
       return { ok: false, error: 'rateLimit' }
     if (error instanceof Anthropic.APIConnectionError)
@@ -126,4 +141,15 @@ export async function askAssistant(
       return { ok: false, error: 'generic' }
     throw error
   }
+}
+
+/* ---------- מצב מקומי ---------- */
+
+function offline(
+  message: string,
+  locale: Locale,
+  listings: Unit[],
+): AssistantOutcome {
+  const { reply, recommendations } = answerLocally(message, locale, listings)
+  return { ok: true, mode: 'offline', reply, recommendations }
 }
